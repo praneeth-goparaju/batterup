@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>BatterUp</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#25D366">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>BatterUp</h1>
+
+    <div id="auth-section">
+      <p style="margin-bottom:28px;color:#888;">Sign in to start entering orders</p>
+      <button onclick="signIn()">Sign in with Google</button>
+    </div>
+
+    <div id="app" style="display:none;">
+      <div class="user-bar">
+        <span id="user-email"></span>
+        <button onclick="signOut()">Sign out</button>
+      </div>
+
+      <!-- Tab: New Order -->
+      <div id="tab-new" class="tab-page active">
+        <h2>New Order</h2>
+        <label>Customer</label>
+        <div style="position:relative;">
+          <input type="text" id="customer" placeholder="Search or type customer name..." autocomplete="off" oninput="onCustomerInput()">
+          <div id="customer-dropdown" class="dropdown" style="display:none;"></div>
+        </div>
+        <label for="delivery-date">Delivery Date</label>
+        <input type="date" id="delivery-date">
+        <h2>Items</h2>
+        <div id="items-container"></div>
+        <button class="btn-add" type="button" onclick="addItemRow()">+ Add Item</button>
+        <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;">
+          <input type="checkbox" id="needs-delivery" onchange="updateRunningTotal()">
+          <label for="needs-delivery" style="margin:0;text-transform:none;font-size:0.95rem;cursor:pointer;">Need Delivery (+&euro;2.00)</label>
+        </div>
+        <div class="running-total" id="running-total" style="display:none;"></div>
+        <label for="notes">Notes (optional)</label>
+        <textarea id="notes" placeholder="Any special instructions..."></textarea>
+        <button class="btn-primary" id="submit-btn" onclick="submitOrder()">Save</button>
+      </div>
+
+      <!-- Tab: Orders -->
+      <div id="tab-orders" class="tab-page">
+        <h2>Upcoming Orders</h2>
+        <div class="search-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="order-search" placeholder="Search by customer..." oninput="filterOrders()">
+        </div>
+        <div id="orders-list"><div class="loading">Loading...</div></div>
+      </div>
+
+      <!-- Tab: Customers -->
+      <div id="tab-customers" class="tab-page">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">Customers</h2>
+          <button class="btn-primary" style="width:auto;margin:0;padding:8px 16px;font-size:0.85rem;" onclick="openModal('add-cust-modal')">+ Add</button>
+        </div>
+        <div class="search-bar" style="margin-top:12px;"><svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" id="customer-search" placeholder="Search customers..." oninput="filterCustomers()"></div>
+        <div id="customers-list"><div class="loading">Loading...</div></div>
+      </div>
+
+      <!-- Tab: Products -->
+      <div id="tab-products" class="tab-page">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0;">Products</h2>
+          <button class="btn-primary" style="width:auto;margin:0;padding:8px 16px;font-size:0.85rem;" onclick="openModal('add-product-modal')">+ Add</button>
+        </div>
+        <div class="search-bar" style="margin-top:12px;"><svg style="position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><input type="text" id="product-search" placeholder="Search products..." oninput="filterProducts()"></div>
+        <div id="products-list"><div class="loading">Loading...</div></div>
+      </div>
+
+      <!-- Tab: Reports -->
+      <div id="tab-reports" class="tab-page">
+        <h2>Reports</h2>
+        <div id="reports-content"><div class="loading">Loading...</div></div>
+      </div>
+
+      <!-- Tab: Tools -->
+      <div id="tab-tools" class="tab-page">
+        <h2>Tools</h2>
+
+        <div class="tools-date-picker">
+          <label style="margin:0;min-width:auto;">Delivery Date</label>
+          <input type="date" id="tools-date">
+        </div>
+
+        <!-- Tile Hub -->
+        <div id="tools-hub" class="tools-grid">
+          <div class="tool-tile" onclick="openTool('route')">
+            <div class="tool-tile-icon">&#x1f5fa;</div>
+            <div class="tool-tile-title">Plan Route</div>
+            <div class="tool-tile-summary" id="tile-route-summary">Optimize delivery order</div>
+          </div>
+          <div class="tool-tile" onclick="openTool('materials')">
+            <div class="tool-tile-icon">&#x1f6d2;</div>
+            <div class="tool-tile-title">Raw Materials</div>
+            <div class="tool-tile-summary" id="tile-materials-summary">What to buy</div>
+          </div>
+          <div class="tool-tile" onclick="openTool('reminders')">
+            <div class="tool-tile-icon">&#x1f4ac;</div>
+            <div class="tool-tile-title">Reminders</div>
+            <div class="tool-tile-summary" id="tile-reminders-summary">Payment follow-ups</div>
+          </div>
+        </div>
+
+        <!-- Detail Views (hidden by default) -->
+        <div id="tool-detail-route" class="tool-detail" style="display:none;">
+          <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
+          <h3>Plan Route</h3>
+          <div class="tools-date-picker">
+            <label style="margin:0;min-width:auto;">Start Time</label>
+            <input type="time" id="tools-start-time" value="08:00">
+          </div>
+          <button class="btn-tools" id="btn-plan-route" onclick="planRoute()" style="width:100%;margin-bottom:8px;">&#x1f5fa; Plan Route</button>
+          <div id="route-info" style="display:none;"></div>
+          <button class="btn-tools" id="btn-open-maps" onclick="openInMaps()" style="display:none;width:100%;margin-bottom:8px;">&#x1f4cd; Open in Maps</button>
+          <button class="btn-tools" id="btn-send-route" onclick="sendRouteToOwner()" style="display:none;width:100%;margin-bottom:8px;">&#x1f4e9; Send Route to Praneeth</button>
+          <button class="btn-primary" id="btn-notify" onclick="notifyCustomers()" style="display:none;width:100%;margin-top:8px;">&#x1f4f1; Notify Customers</button>
+        </div>
+
+        <div id="tool-detail-materials" class="tool-detail" style="display:none;">
+          <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
+          <h3>Raw Materials Needed</h3>
+          <div style="font-size:0.8rem;color:var(--gray);margin-bottom:12px;">For all upcoming undelivered orders</div>
+          <div id="tools-raw-materials" class="report-card" style="margin:0;"></div>
+        </div>
+
+        <div id="tool-detail-reminders" class="tool-detail" style="display:none;">
+          <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
+          <h3>Payment Reminders</h3>
+          <div id="tools-reminders" class="reminder-card">
+            <div class="stat" id="reminder-count">0</div>
+            <div class="sub" id="reminder-sub">customers with unpaid orders</div>
+            <div class="sub" id="reminder-total">Total outstanding: &euro;0.00</div>
+            <button class="btn-primary" onclick="sendReminders()" style="margin-top:8px;background:var(--orange);box-shadow:0 4px 12px rgba(230,81,0,0.3);">&#x1f4ac; Send Reminders</button>
+            <div style="font-size:0.8rem;color:var(--gray);margin-top:6px;">Sends polite reminder to each customer via WhatsApp</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Product Modal -->
+  <div class="modal-overlay" id="edit-product-modal">
+    <div class="modal">
+      <h2>Edit Product</h2>
+      <label for="edit-product-name">Name</label>
+      <input type="text" id="edit-product-name">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="flex:1;"><label for="edit-product-price">Price</label><input type="number" id="edit-product-price" min="0" step="any" inputmode="decimal"></div>
+        <div style="flex:0.7;"><label for="edit-product-unit">Unit</label><select id="edit-product-unit"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="flex:1;"><label for="edit-product-min-qty">Min Quantity</label><input type="number" id="edit-product-min-qty" min="0" step="any" inputmode="decimal"></div>
+        <div style="flex:0.7;"><label for="edit-product-min-unit">Min Unit</label><select id="edit-product-min-unit"><option value="grams">grams</option><option value="kg">kg</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
+      </div>
+      <label>Raw Materials <span style="font-weight:400;color:#888;">(per 1 unit)</span></label>
+      <div id="edit-product-rm-container"></div>
+      <button class="btn-add" type="button" onclick="addEditProductRM()" style="font-size:0.85rem;padding:10px;">+ Add Raw Material</button>
+      <button class="btn-primary" onclick="saveEditProduct()">Save Changes</button>
+      <button class="cancel-link" onclick="closeModal('edit-product-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Edit Order Modal -->
+  <div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+      <h2>Edit Order</h2>
+      <label for="edit-customer">Customer Name</label>
+      <input type="text" id="edit-customer">
+      <label for="edit-delivery-date">Delivery Date</label>
+      <input type="date" id="edit-delivery-date">
+      <h2>Items</h2>
+      <div id="edit-items-container"></div>
+      <button class="btn-add" type="button" onclick="addEditItemRow()">+ Add Item</button>
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;">
+        <input type="checkbox" id="edit-needs-delivery" style="width:20px;height:20px;accent-color:var(--green);">
+        <label for="edit-needs-delivery" style="margin:0;text-transform:none;font-size:0.95rem;cursor:pointer;">Need Delivery (+&euro;2.00)</label>
+      </div>
+      <label for="edit-notes">Notes (optional)</label>
+      <textarea id="edit-notes"></textarea>
+      <button class="btn-primary" id="save-edit-btn" onclick="saveEditOrder()">Save Changes</button>
+      <button class="cancel-link" onclick="closeModal('edit-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Edit Customer Modal -->
+  <div class="modal-overlay" id="edit-cust-modal">
+    <div class="modal">
+      <h2>Edit Customer</h2>
+      <label for="edit-cust-name">Name</label>
+      <input type="text" id="edit-cust-name">
+      <label for="edit-cust-phone">Phone</label>
+      <input type="tel" id="edit-cust-phone">
+      <label for="edit-cust-address">Address</label>
+      <input type="text" id="edit-cust-address">
+      <label for="edit-cust-notes">Notes</label>
+      <textarea id="edit-cust-notes"></textarea>
+      <button class="btn-primary" onclick="saveEditCustomer()">Save Changes</button>
+      <button class="cancel-link" onclick="closeModal('edit-cust-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Customer Detail Modal -->
+  <div class="modal-overlay" id="cust-detail-modal">
+    <div class="modal">
+      <h2 id="cust-detail-name"></h2>
+      <div id="cust-detail-info" style="font-size:0.9rem;color:#666;margin-bottom:12px;"></div>
+      <div id="cust-detail-balance" style="margin-bottom:16px;"></div>
+      <h3>Order History</h3>
+      <div id="cust-detail-orders"></div>
+      <button class="cancel-link" onclick="closeModal('cust-detail-modal')" style="margin-top:16px;">Close</button>
+    </div>
+  </div>
+
+  <!-- Add Customer Modal -->
+  <div class="modal-overlay" id="add-cust-modal">
+    <div class="modal">
+      <h2>Add Customer</h2>
+      <label for="new-cust-name">Name</label>
+      <input type="text" id="new-cust-name" placeholder="Customer name">
+      <label for="new-cust-phone">Phone</label>
+      <input type="tel" id="new-cust-phone" placeholder="Phone number">
+      <label for="new-cust-address">Address</label>
+      <input type="text" id="new-cust-address" placeholder="Delivery address">
+      <label for="new-cust-notes">Notes</label>
+      <textarea id="new-cust-notes" placeholder="e.g. regular customer, prefers morning delivery"></textarea>
+      <button class="btn-primary" onclick="addCustomer()">Add Customer</button>
+      <button class="cancel-link" onclick="closeModal('add-cust-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Add Product Modal -->
+  <div class="modal-overlay" id="add-product-modal">
+    <div class="modal">
+      <h2>Add Product</h2>
+      <label for="new-product-name">Name</label>
+      <input type="text" id="new-product-name" placeholder="e.g. Idly Batter">
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="flex:1;"><label for="new-product-price">Price</label><input type="number" id="new-product-price" placeholder="0" min="0" step="any" inputmode="decimal"></div>
+        <div style="flex:0.7;"><label for="new-product-unit">Unit</label><select id="new-product-unit"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="flex:1;"><label for="new-product-min-qty">Min Quantity</label><input type="number" id="new-product-min-qty" placeholder="e.g. 250" min="0" step="any" inputmode="decimal"></div>
+        <div style="flex:0.7;"><label for="new-product-min-unit">Min Unit</label><select id="new-product-min-unit"><option value="grams">grams</option><option value="kg">kg</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
+      </div>
+      <label>Raw Materials <span style="font-weight:400;color:#888;">(per 1 unit)</span></label>
+      <div id="new-product-rm-container"></div>
+      <button class="btn-add" type="button" onclick="addNewProductRM()" style="font-size:0.85rem;padding:10px;">+ Add Raw Material</button>
+      <button class="btn-primary" onclick="addProduct()">Add Product</button>
+      <button class="cancel-link" onclick="closeModal('add-product-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Bottom tab bar -->
+  <div class="tab-bar" id="tab-bar" style="display:none;">
+    <button class="active" onclick="switchTab('new', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      New
+    </button>
+    <button onclick="switchTab('orders', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Orders
+    </button>
+    <button onclick="switchTab('customers', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Customers
+    </button>
+    <button onclick="switchTab('products', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      Products
+    </button>
+    <button onclick="switchTab('reports', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 5-5"/></svg>
+      Reports
+    </button>
+    <button onclick="switchTab('tools', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      Tools
+    </button>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

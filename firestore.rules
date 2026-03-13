@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAllowed() {
+      return request.auth != null && request.auth.token.email in [
+        "goparajupraneeth@gmail.com",
+        "manasagangaraju@gmail.com"
+      ];
+    }
+
+    match /orders/{orderId} {
+      allow create, read, update, delete: if isAllowed();
+    }
+    match /products/{productId} {
+      allow read, create, update, delete: if isAllowed();
+    }
+    match /customers/{customerId} {
+      allow read, create, update, delete: if isAllowed();
+    }
+    match /config/{docId} {
+      allow read: if isAllowed();
+    }
+    match /routes/{routeId} {
+      allow read, create: if isAllowed();
+    }
+  }
+}
