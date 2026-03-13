@@ -1,4 +1,4 @@
-import { state, DELIVERY_FEE } from './state.js';
+import { DELIVERY_FEE } from './state.js';
 
 let toastTimer;
 export function showToast(msg, type = "success") {

@@ -12,14 +12,14 @@ export default [
     },
     rules: {
       "no-undef": "error",
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
       "no-const-assign": "error",
       "no-dupe-args": "error",
       "no-dupe-keys": "error",
       "no-duplicate-case": "error",
       "no-unreachable": "error",
-      "eqeqeq": ["warn", "smart"],
-      "no-debugger": "warn",
+      "eqeqeq": ["error", "smart"],
+      "no-debugger": "error",
     },
   },
 ];

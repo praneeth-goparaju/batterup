@@ -93,7 +93,7 @@ window.addCustomer = async () => {
     closeModal("add-cust-modal");
     await loadCustomers();
     showToast("Customer added");
-  } catch (e) { showToast("Failed to add customer", "error"); }
+  } catch (_e) { showToast("Failed to add customer", "error"); }
 };
 
 window.openEditCustModal = (id) => {
@@ -114,14 +114,14 @@ window.saveEditCustomer = async () => {
   const notes = document.getElementById("edit-cust-notes").value.trim();
   if (!name) { showToast("Enter a customer name", "error"); return; }
   try { await updateDoc(doc(db, "customers", state.editingCustomerId), { name, phone, address, notes }); closeModal("edit-cust-modal"); await loadCustomers(); showToast("Customer updated"); }
-  catch (e) { showToast("Failed to save", "error"); }
+  catch (_e) { showToast("Failed to save", "error"); }
 };
 
 window.deleteCustomer = async (id) => {
   const c = state.customers.find(x => x.id === id);
   if (!confirm(`Delete "${c?.name}"?`)) return;
   try { await deleteDoc(doc(db, "customers", id)); await loadCustomers(); showToast("Customer deleted"); }
-  catch (e) { showToast("Failed to delete", "error"); }
+  catch (_e) { showToast("Failed to delete", "error"); }
 };
 
 window.openCustDetail = (id) => {

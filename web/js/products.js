@@ -105,7 +105,7 @@ window.addProduct = async () => {
     closeModal("add-product-modal");
     await loadProducts();
     showToast("Product added");
-  } catch (e) { showToast("Failed to add product", "error"); }
+  } catch (_e) { showToast("Failed to add product", "error"); }
 };
 
 window.openEditProductModal = (id) => {
@@ -143,14 +143,14 @@ window.saveEditProduct = async () => {
   const data = { name, default_price: price, unit, min_quantity: minQty > 0 ? minQty : 0, min_unit: minQty > 0 ? minUnit : "" };
   data.raw_materials = collectRMs("edit-product-rm-container", "erm");
   try { await updateDoc(doc(db, "products", state.editingProductId), data); closeModal("edit-product-modal"); await loadProducts(); showToast("Product updated"); }
-  catch (e) { showToast("Failed to save", "error"); }
+  catch (_e) { showToast("Failed to save", "error"); }
 };
 
 window.deleteProduct = async (id) => {
   const p = state.products.find(x => x.id === id);
   if (!confirm(`Delete "${p?.name}"?`)) return;
   try { await deleteDoc(doc(db, "products", id)); await loadProducts(); showToast("Product deleted"); }
-  catch (e) { showToast("Failed to delete", "error"); }
+  catch (_e) { showToast("Failed to delete", "error"); }
 };
 
 window.filterProducts = () => renderProducts();

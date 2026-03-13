@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { esc, formatDate, orderTotal, fmtQty, buildRawMaterialsByProduct } from './helpers.js';
+import { esc, orderTotal, fmtQty, buildRawMaterialsByProduct } from './helpers.js';
 
 export function renderReports() {
   const container = document.getElementById("reports-content");
@@ -83,5 +83,6 @@ export function renderReports() {
     <div class="report-card"><h3>Outstanding by Customer</h3>${unpaidRows}</div>
     <div class="report-card"><h3>Top Customers This Month</h3>${topCustRows}</div>
     <div class="report-card"><h3>This Week (Paid)</h3><div class="stat-row"><span class="label">Revenue</span><span class="value success">&euro;${totalPaidWeek.toFixed(2)}</span></div></div>
-    <div class="report-card"><h3>Products This Month</h3>${productRows}</div>`;
+    <div class="report-card"><h3>Products This Month</h3>${productRows}</div>
+    <div class="report-card"><h3>Raw Materials (Pending Orders)</h3>${rmRows}</div>`;
 }

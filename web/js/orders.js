@@ -106,7 +106,7 @@ window.togglePaid = async (id, paid) => {
     state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast(paid ? "Marked as paid" : "Marked as unpaid");
-  } catch (e) { showToast("Failed to update", "error"); }
+  } catch (_e) { showToast("Failed to update", "error"); }
 };
 
 window.toggleDelivered = async (id, delivered) => {
@@ -117,7 +117,7 @@ window.toggleDelivered = async (id, delivered) => {
     state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast(delivered ? "Marked as delivered" : "Marked as undelivered");
-  } catch (e) { showToast("Failed to update", "error"); }
+  } catch (_e) { showToast("Failed to update", "error"); }
 };
 
 window.deleteOrder = async (id) => {
@@ -128,7 +128,7 @@ window.deleteOrder = async (id) => {
     state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast("Order deleted");
-  } catch (e) { showToast("Failed to delete", "error"); }
+  } catch (_e) { showToast("Failed to delete", "error"); }
 };
 
 // ========== ITEM ROWS + RUNNING TOTAL ==========
@@ -218,7 +218,7 @@ window.submitOrder = async () => {
     state.formDirty = false;
     itemCounter = 0; window.addItemRow(); setDefaultDate();
     showToast("Order submitted!");
-  } catch (e) { showToast("Failed to submit order", "error"); }
+  } catch (_e) { showToast("Failed to submit order", "error"); }
   finally { btn.disabled = false; btn.textContent = "Save"; }
 };
 
@@ -295,7 +295,7 @@ window.saveEditOrder = async () => {
     if (idx >= 0) Object.assign(state.allOrders[idx], { items, customer_name: customer, delivery_date: deliveryDate, notes, needs_delivery: editNeedsDelivery });
     state.fullOrdersLoaded = false;
     closeModal("edit-modal"); renderOrdersList(); showToast("Order updated");
-  } catch (e) { showToast("Failed to save", "error"); }
+  } catch (_e) { showToast("Failed to save", "error"); }
   finally { btn.disabled = false; btn.textContent = "Save Changes"; }
 };
 
