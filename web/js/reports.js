@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { esc, orderTotal, fmtQty, buildRawMaterialsByProduct } from './helpers.js';
+import { esc, orderTotal } from './helpers.js';
 
 export function renderReports() {
   const container = document.getElementById("reports-content");
@@ -48,7 +48,6 @@ export function renderReports() {
     }
   }
 
-  const rmByProduct = buildRawMaterialsByProduct(state.allOrders, state.products);
 
   const unpaidRows = Object.entries(unpaidByCustomer).sort((a, b) => b[1] - a[1])
     .map(([n, a]) => `<div class="stat-row"><span class="label">${esc(n)}</span><span class="value danger">&euro;${a.toFixed(2)}</span></div>`)
@@ -62,15 +61,6 @@ export function renderReports() {
     .map(([n, a]) => `<div class="stat-row"><span class="label">${esc(n)}</span><span class="value">&euro;${a.toFixed(2)}</span></div>`)
     .join("") || '<div class="stat-row"><span class="label">No orders this month</span></div>';
 
-  const rmRows = Object.keys(rmByProduct).length > 0
-    ? Object.entries(rmByProduct).map(([pName, pData]) => {
-      const matRows = Object.values(pData.materials).sort((a, b) => b.qty - a.qty)
-        .map(rm => `<div class="stat-row" style="padding-left:12px;"><span class="label" style="color:#888;">${esc(rm.name)}</span><span class="value">${fmtQty(rm.qty)} ${esc(rm.unit)}</span></div>`)
-        .join("");
-      return `<div style="font-weight:600;font-size:0.88rem;margin-top:10px;margin-bottom:4px;">${esc(pName)} <span style="font-weight:400;color:var(--gray);">(${fmtQty(pData.totalQty)} ${esc(pData.unit)})</span></div>${matRows}`;
-    }).join("")
-    : '<div class="stat-row"><span class="label" style="color:#2e7d32;">No upcoming orders</span></div>';
-
   container.innerHTML = `
     <div class="report-row-2">
       <div class="report-card"><div class="stat-big danger">&euro;${totalUnpaid.toFixed(2)}</div><div class="stat-label">Unpaid</div></div>
@@ -83,6 +73,5 @@ export function renderReports() {
     <div class="report-card"><h3>Outstanding by Customer</h3>${unpaidRows}</div>
     <div class="report-card"><h3>Top Customers This Month</h3>${topCustRows}</div>
     <div class="report-card"><h3>This Week (Paid)</h3><div class="stat-row"><span class="label">Revenue</span><span class="value success">&euro;${totalPaidWeek.toFixed(2)}</span></div></div>
-    <div class="report-card"><h3>Products This Month</h3>${productRows}</div>
-    <div class="report-card"><h3>Raw Materials (Pending Orders)</h3>${rmRows}</div>`;
+    <div class="report-card"><h3>Products This Month</h3>${productRows}</div>`;
 }
