@@ -1,0 +1,26 @@
+{
+  "name": "batterup",
+  "version": "1.0.0",
+  "description": "A mobile-first Progressive Web App for managing batter/food orders, customers, products, delivery routing, and analytics. Built with vanilla JavaScript and Firebase.",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint web/js/",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/praneeth-goparaju/batterup.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/praneeth-goparaju/batterup/issues"
+  },
+  "homepage": "https://github.com/praneeth-goparaju/batterup#readme",
+  "devDependencies": {
+    "eslint": "^10.0.3",
+    "globals": "^17.4.0"
+  }
+}
