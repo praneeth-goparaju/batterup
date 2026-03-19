@@ -24,8 +24,12 @@ export function friendlyDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
+export function getDeliveryFee(order) {
+  return order.delivery_fee != null ? order.delivery_fee : (order.needs_delivery ? DELIVERY_FEE : 0);
+}
+
 export function orderTotal(order) {
-  return order.items.reduce((s, i) => s + i.quantity * i.price, 0) + (order.needs_delivery ? DELIVERY_FEE : 0);
+  return order.items.reduce((s, i) => s + i.quantity * i.price, 0) + getDeliveryFee(order);
 }
 
 const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };

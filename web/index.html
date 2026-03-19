@@ -41,10 +41,12 @@
         <h2>Items</h2>
         <div id="items-container"></div>
         <button class="btn-add" type="button" onclick="addItemRow()">+ Add Item</button>
-        <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;">
-          <input type="checkbox" id="needs-delivery" onchange="updateRunningTotal()">
-          <label for="needs-delivery" style="margin:0;text-transform:none;font-size:0.95rem;cursor:pointer;">Need Delivery (+&euro;2.00)</label>
+        <label style="margin-top:14px;">Delivery</label>
+        <div class="delivery-toggle-group">
+          <button type="button" class="delivery-toggle" data-fee="2" onclick="toggleDeliveryFee(this, 'new')">&#x1f69a; &euro;2.00</button>
+          <button type="button" class="delivery-toggle" data-fee="1" onclick="toggleDeliveryFee(this, 'new')">&#x1f69a; &euro;1.00</button>
         </div>
+        <input type="hidden" id="delivery-fee" value="0">
         <div class="running-total" id="running-total" style="display:none;"></div>
         <label for="notes">Notes (optional)</label>
         <textarea id="notes" placeholder="Any special instructions..."></textarea>
@@ -105,8 +107,18 @@
           </div>
           <div class="tool-tile" onclick="openTool('materials')">
             <div class="tool-tile-icon">&#x1f6d2;</div>
-            <div class="tool-tile-title">Raw Materials</div>
+            <div class="tool-tile-title">Materials Needed</div>
             <div class="tool-tile-summary" id="tile-materials-summary">What to buy</div>
+          </div>
+          <div class="tool-tile" onclick="openTool('deliveryrun')">
+            <div class="tool-tile-icon">&#x1f69a;</div>
+            <div class="tool-tile-title">Delivery Run</div>
+            <div class="tool-tile-summary" id="tile-deliveryrun-summary">Start delivering</div>
+          </div>
+          <div class="tool-tile" onclick="openTool('homebatter')">
+            <div class="tool-tile-icon">&#x1f3e0;</div>
+            <div class="tool-tile-title">Home Batter</div>
+            <div class="tool-tile-summary" id="tile-homebatter-summary">Add for home use</div>
           </div>
           <div class="tool-tile" onclick="openTool('reminders')">
             <div class="tool-tile-icon">&#x1f4ac;</div>
@@ -132,9 +144,26 @@
 
         <div id="tool-detail-materials" class="tool-detail" style="display:none;">
           <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
-          <h3>Raw Materials Needed</h3>
+          <h3>Materials Needed</h3>
           <div style="font-size:0.8rem;color:var(--gray);margin-bottom:12px;">For all upcoming undelivered orders</div>
           <div id="tools-raw-materials" class="report-card" style="margin:0;"></div>
+        </div>
+
+        <div id="tool-detail-deliveryrun" class="tool-detail" style="display:none;">
+          <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
+          <h3>Delivery Run</h3>
+          <div id="deliveryrun-header"></div>
+          <div id="deliveryrun-list"></div>
+        </div>
+
+        <div id="tool-detail-homebatter" class="tool-detail" style="display:none;">
+          <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
+          <h3>Home Batter</h3>
+          <div style="font-size:0.8rem;color:var(--gray);margin-bottom:12px;">Add products for home use</div>
+          <div id="home-items-container"></div>
+          <button class="btn-add" type="button" onclick="addHomeItemRow()" style="margin-bottom:12px;">+ Add Item</button>
+          <button class="btn-primary" id="home-save-btn" onclick="saveHomeBatter()">Save</button>
+          <button class="btn-danger" id="home-delete-btn" onclick="deleteHomeBatter()" style="display:none;width:100%;margin-top:8px;">Delete</button>
         </div>
 
         <div id="tool-detail-reminders" class="tool-detail" style="display:none;">
@@ -185,10 +214,13 @@
       <h2>Items</h2>
       <div id="edit-items-container"></div>
       <button class="btn-add" type="button" onclick="addEditItemRow()">+ Add Item</button>
-      <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px;">
-        <input type="checkbox" id="edit-needs-delivery" style="width:20px;height:20px;accent-color:var(--green);">
-        <label for="edit-needs-delivery" style="margin:0;text-transform:none;font-size:0.95rem;cursor:pointer;">Need Delivery (+&euro;2.00)</label>
+      <label style="margin-top:14px;">Delivery</label>
+      <div class="delivery-toggle-group">
+        <button type="button" class="delivery-toggle" data-fee="2" onclick="toggleDeliveryFee(this, 'edit')">&#x1f69a; &euro;2.00</button>
+        <button type="button" class="delivery-toggle" data-fee="1" onclick="toggleDeliveryFee(this, 'edit')">&#x1f69a; &euro;1.00</button>
       </div>
+      <input type="hidden" id="edit-delivery-fee" value="0">
+      <div class="running-total" id="edit-running-total" style="display:none;"></div>
       <label for="edit-notes">Notes (optional)</label>
       <textarea id="edit-notes"></textarea>
       <button class="btn-primary" id="save-edit-btn" onclick="saveEditOrder()">Save Changes</button>

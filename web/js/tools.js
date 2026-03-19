@@ -1,5 +1,6 @@
-import { state, db, auth, collection, doc, addDoc, getDocs, getDoc, query, where, serverTimestamp } from './state.js';
-import { esc, showToast, orderTotal, friendlyDate, fmtQty, buildRawMaterialsByProduct } from './helpers.js';
+import { state, db, auth, collection, doc, addDoc, getDocs, getDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from './state.js';
+import { esc, showToast, orderTotal, friendlyDate, fmtQty, buildRawMaterialsByProduct, parseNum } from './helpers.js';
+import { buildProductOptions } from './products.js';
 
 function buildCustByName() {
   return new Map(state.customers.map(c => [c.name, c]));
@@ -13,6 +14,8 @@ window.openTool = (tool) => {
   if (tool === "route") { loadSavedRoute(); updateNotifyButton(); }
   if (tool === "materials") renderToolsRawMaterials();
   if (tool === "reminders") renderToolsReminders();
+  if (tool === "deliveryrun") renderDeliveryRun();
+  if (tool === "homebatter") renderHomeBatter();
 };
 
 window.closeTool = () => {
@@ -34,10 +37,42 @@ function updateTileSummaries() {
     routeTile.textContent = "No deliveries";
   }
 
-  // Materials tile
+  // Delivery run tile
+  const delivered = deliveries.filter(o => o.delivered).length;
+  const drTile = document.getElementById("tile-deliveryrun-summary");
+  if (deliveries.length > 0) {
+    drTile.textContent = delivered === deliveries.length ? "All delivered!" : `${delivered}/${deliveries.length} delivered`;
+  } else {
+    drTile.textContent = "No deliveries";
+  }
+
+  // Materials tile — show as shopping list summary
   const rmByProduct = buildRawMaterialsByProduct(state.allOrders, state.products);
-  const rmCount = Object.values(rmByProduct).reduce((sum, p) => sum + Object.keys(p.materials).length, 0);
-  document.getElementById("tile-materials-summary").textContent = rmCount > 0 ? `${rmCount} items to procure` : "No items needed";
+  const productCount = Object.keys(rmByProduct).length;
+  const matTile = document.getElementById("tile-materials-summary");
+  if (productCount > 0) {
+    // Aggregate all unique materials across products
+    const allMats = new Map();
+    for (const pData of Object.values(rmByProduct)) {
+      for (const rm of Object.values(pData.materials)) {
+        const key = `${rm.name}||${rm.unit}`;
+        allMats.set(key, (allMats.get(key) || 0) + rm.qty);
+      }
+    }
+    matTile.textContent = `${allMats.size} material${allMats.size !== 1 ? 's' : ''} needed`;
+  } else {
+    matTile.textContent = "No materials needed";
+  }
+
+  // Home batter tile
+  const homeOrders = state.allOrders.filter(o => o.delivery_date === dateStr && o.is_home);
+  const homeTile = document.getElementById("tile-homebatter-summary");
+  if (homeOrders.length > 0) {
+    const homeItems = homeOrders.flatMap(o => o.items).length;
+    homeTile.textContent = `${homeItems} item${homeItems !== 1 ? 's' : ''} added`;
+  } else {
+    homeTile.textContent = "Add for home use";
+  }
 
   // Reminders tile
   const byCustomer = getUnpaidDeliveredByCustomer();
@@ -118,15 +153,13 @@ function renderRouteInfo(label, stops, stopETAs, totalDistanceM, totalDurationS)
   document.getElementById("btn-send-route").style.display = "block";
 }
 
-async function loadSavedRoute() {
-  const dateStr = document.getElementById("tools-date").value;
-  if (!dateStr) return;
-  const today = new Date().toISOString().split("T")[0];
-  if (dateStr < today) return;
+async function fetchRouteForDate(dateStr) {
+  if (state.optimizedRoute) return state.optimizedRoute;
+  if (!dateStr) return null;
   try {
     const q = query(collection(db, "routes"), where("date", "==", dateStr));
     const snap = await getDocs(q);
-    if (snap.empty) return;
+    if (snap.empty) return null;
     const docs = snap.docs.map(d => d.data()).sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
     const saved = docs[0];
     const stopETAs = saved.stops.map(s => s.eta || '');
@@ -138,10 +171,21 @@ async function loadSavedRoute() {
       stopETAs: stopETAs,
       mapsUrl: saved.maps_url
     };
-    renderRouteInfo("Saved Route", saved.stops, stopETAs, saved.total_distance_m, saved.total_duration_s);
-    updateNotifyButton();
+    return state.optimizedRoute;
   } catch (e) {
-    console.error("Failed to load saved route:", e);
+    console.error("Failed to load route:", e);
+    return null;
+  }
+}
+
+async function loadSavedRoute() {
+  const dateStr = document.getElementById("tools-date").value;
+  const today = new Date().toISOString().split("T")[0];
+  if (!dateStr || dateStr < today) return;
+  const route = await fetchRouteForDate(dateStr);
+  if (route) {
+    renderRouteInfo("Saved Route", route.stops, route.stopETAs, route.totalDistance, route.totalDuration);
+    updateNotifyButton();
   }
 }
 
@@ -463,16 +507,328 @@ function renderToolsRawMaterials() {
   const container = document.getElementById("tools-raw-materials");
   const rmByProduct = buildRawMaterialsByProduct(state.allOrders, state.products);
   if (Object.keys(rmByProduct).length === 0) {
-    container.innerHTML = '<div style="padding:12px;font-size:0.85rem;color:var(--gray);text-align:center;">No upcoming orders need raw materials</div>';
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--gray);"><div style="font-size:2rem;margin-bottom:8px;opacity:0.5;">&#x1f6d2;</div><p>No materials needed</p></div>';
     return;
   }
-  container.innerHTML = Object.entries(rmByProduct).map(([pName, pData]) => {
+
+  // 1. Aggregated shopping list across all products
+  const allMats = new Map();
+  for (const pData of Object.values(rmByProduct)) {
+    for (const rm of Object.values(pData.materials)) {
+      const key = `${rm.name}||${rm.unit}`;
+      if (!allMats.has(key)) allMats.set(key, { name: rm.name, unit: rm.unit, qty: 0 });
+      allMats.get(key).qty += rm.qty;
+    }
+  }
+  const sortedMats = [...allMats.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const shoppingRows = sortedMats.map(rm =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+      <span style="font-size:0.95rem;">${esc(rm.name)}</span>
+      <span style="font-weight:700;font-size:0.95rem;white-space:nowrap;">${fmtQty(rm.qty)} ${esc(rm.unit)}</span>
+    </div>`
+  ).join("");
+
+  // 2. Breakdown by product
+  const breakdownRows = Object.entries(rmByProduct).map(([pName, pData]) => {
     const matRows = Object.values(pData.materials).sort((a, b) => b.qty - a.qty)
       .map(rm => `<div style="display:flex;justify-content:space-between;padding:3px 0 3px 12px;font-size:0.85rem;"><span style="color:#666;">${esc(rm.name)}</span><span>${fmtQty(rm.qty)} ${esc(rm.unit)}</span></div>`)
       .join("");
     return `<div style="margin-bottom:10px;"><div style="font-weight:600;font-size:0.9rem;padding-bottom:4px;border-bottom:1px solid #eee;">${esc(pName)} <span style="font-weight:400;color:var(--gray);">(${fmtQty(pData.totalQty)} ${esc(pData.unit)})</span></div>${matRows}</div>`;
   }).join("");
+
+  container.innerHTML = `
+    <div style="font-weight:700;font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Total Materials</div>
+    ${shoppingRows}
+    <div style="margin-top:20px;font-weight:700;font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Breakdown by Product</div>
+    ${breakdownRows}`;
 }
+
+// ========== DELIVERY RUN ==========
+async function renderDeliveryRun() {
+  const headerEl = document.getElementById("deliveryrun-header");
+  const listEl = document.getElementById("deliveryrun-list");
+  const dateStr = document.getElementById("tools-date").value;
+  if (!dateStr) { listEl.innerHTML = '<div class="empty-state"><p>Select a delivery date</p></div>'; return; }
+
+  const deliveries = state.allOrders.filter(o => o.delivery_date === dateStr && o.needs_delivery);
+  if (deliveries.length === 0) {
+    headerEl.innerHTML = '';
+    listEl.innerHTML = '<div class="empty-state"><div class="icon">&#x1f69a;</div><p>No deliveries for this date</p></div>';
+    return;
+  }
+
+  const route = await fetchRouteForDate(dateStr);
+  const custByName = buildCustByName();
+
+  // Group orders by customer
+  const ordersByCustomer = new Map();
+  for (const o of deliveries) {
+    if (!ordersByCustomer.has(o.customer_name)) ordersByCustomer.set(o.customer_name, []);
+    ordersByCustomer.get(o.customer_name).push(o);
+  }
+
+  // Build stops in route order if available, otherwise in order of deliveries
+  let stops = [];
+  if (route?.stops) {
+    for (const rs of route.stops) {
+      const orders = ordersByCustomer.get(rs.name);
+      if (orders) {
+        stops.push({ name: rs.name, address: rs.address, eta: null, orders });
+        ordersByCustomer.delete(rs.name);
+      }
+    }
+    // Set ETAs from route
+    route.stops.forEach((rs, i) => {
+      const stop = stops.find(s => s.name === rs.name);
+      if (stop) stop.eta = route.stopETAs?.[i] || null;
+    });
+  }
+  // Add remaining customers not in route
+  for (const [name, orders] of ordersByCustomer) {
+    const cust = custByName.get(name);
+    stops.push({ name, address: cust?.address || '', eta: null, orders });
+  }
+
+  // Split into pending and done
+  const pendingStops = stops.filter(s => !s.orders.every(o => o.delivered));
+  const doneStops = stops.filter(s => s.orders.every(o => o.delivered));
+
+  // Progress
+  const totalStops = stops.length;
+  const doneCount = doneStops.length;
+  const pct = totalStops > 0 ? Math.round((doneCount / totalStops) * 100) : 0;
+
+  headerEl.innerHTML = `
+    <div class="dr-progress">
+      <div style="font-weight:700;font-size:1.1rem;">${doneCount === totalStops ? 'All Delivered! &#x1f389;' : `${doneCount} of ${totalStops} delivered`}</div>
+      <div class="dr-progress-bar"><div class="dr-progress-fill" style="width:${pct}%"></div></div>
+      <div class="dr-progress-text">${pct}% complete</div>
+    </div>
+    ${route?.mapsUrl ? `<button class="dr-open-maps" onclick="openInMaps()">&#x1f4cd; Open Full Route in Maps</button>` : ''}`;
+
+  let html = '';
+
+  // Pending cards
+  pendingStops.forEach((stop) => {
+    const idx = stops.indexOf(stop);
+    const cust = custByName.get(stop.name);
+    const items = stop.orders.flatMap(o => o.items.map(it => `<span>${fmtQty(it.quantity)} ${esc(it.unit)} ${esc(it.name)}</span>`)).join(' ');
+    const total = stop.orders.reduce((s, o) => s + orderTotal(o), 0);
+    const allPaid = stop.orders.every(o => o.paid);
+    html += `<div class="dr-card" id="dr-stop-${idx}">
+      <div class="dr-step">
+        <div class="dr-step-num">${idx + 1}</div>
+        <div>
+          <div class="dr-name">${esc(stop.name)}</div>
+          <div class="dr-items">${items}</div>
+        </div>
+        ${stop.eta ? `<div class="dr-eta">${esc(stop.eta)}</div>` : ''}
+      </div>
+      <div class="dr-status">
+        ${allPaid
+          ? `<div class="dr-badge paid">PAID</div>`
+          : `<div class="dr-badge unpaid">&euro;${total.toFixed(2)} UNPAID</div>`}
+      </div>
+      <div class="dr-actions">
+        ${stop.address ? `<button class="dr-btn-navigate" data-address="${esc(stop.address)}" onclick="drNavigate(this)">&#x1f4cd; Navigate</button>` : ''}
+        ${cust?.phone ? `<button class="dr-btn-call" data-phone="${esc(cust.phone)}" onclick="drCall(this)">&#x1f4de; Call</button>` : ''}
+        ${!allPaid ? `<button class="dr-btn-paid" onclick="drTogglePaid(${idx}, true)">&#x1f4b6; Paid</button>` : ''}
+        <button class="dr-btn-delivered" onclick="drToggleDelivered(${idx}, true)">&#x2713; Delivered</button>
+      </div>
+    </div>`;
+  });
+
+  // Done section
+  if (doneStops.length > 0) {
+    html += `<div class="dr-done-section">
+      <div class="dr-done-toggle" onclick="document.getElementById('dr-done-list').style.display = document.getElementById('dr-done-list').style.display === 'none' ? 'block' : 'none'; this.querySelector('.dr-chevron').classList.toggle('open')">
+        <span class="dr-chevron">&#x25B6;</span> ${doneStops.length} delivered
+      </div>
+      <div id="dr-done-list" style="display:none;">`;
+
+    doneStops.forEach((stop) => {
+      const idx = stops.indexOf(stop);
+      html += `<div class="dr-done-card">
+        <div class="dr-step">
+          <div class="dr-step-num">${idx + 1}</div>
+          <div class="dr-name">${esc(stop.name)}</div>
+          <span class="dr-undo-link" onclick="drToggleDelivered(${idx}, false)">Undo</span>
+        </div>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  }
+
+  listEl.innerHTML = html;
+  state._drStops = stops;
+}
+
+window.drNavigate = (btn) => {
+  window.location.href = `maps://?daddr=${encodeURIComponent(btn.dataset.address)}`;
+};
+window.drCall = (btn) => {
+  window.location.href = `tel:${btn.dataset.phone}`;
+};
+
+window.drToggleDelivered = async (stopIdx, delivered) => {
+  const stops = state._drStops;
+  if (!stops || !stops[stopIdx]) return;
+  const stop = stops[stopIdx];
+  const card = document.getElementById(`dr-stop-${stopIdx}`);
+  try {
+    await Promise.all(stop.orders.map(o => updateDoc(doc(db, "orders", o.id), { delivered })));
+    for (const o of stop.orders) {
+      o.delivered = delivered;
+      const stateOrder = state.allOrders.find(x => x.id === o.id);
+      if (stateOrder) stateOrder.delivered = delivered;
+    }
+    state.fullOrdersLoaded = false;
+    if (delivered && card) {
+      card.classList.add("collapsing");
+      setTimeout(() => renderDeliveryRun(), 400);
+    } else {
+      renderDeliveryRun();
+    }
+    showToast(delivered ? `${stop.name} delivered` : `${stop.name} unmarked`);
+  } catch (_e) {
+    showToast("Failed to update", "error");
+  }
+};
+
+window.drTogglePaid = async (stopIdx, paid) => {
+  const stops = state._drStops;
+  if (!stops || !stops[stopIdx]) return;
+  const stop = stops[stopIdx];
+  try {
+    await Promise.all(stop.orders.map(o => updateDoc(doc(db, "orders", o.id), { paid })));
+    for (const o of stop.orders) {
+      o.paid = paid;
+      const stateOrder = state.allOrders.find(x => x.id === o.id);
+      if (stateOrder) stateOrder.paid = paid;
+    }
+    state.fullOrdersLoaded = false;
+    renderDeliveryRun();
+    showToast(`${stop.name} marked paid`);
+  } catch (_e) {
+    showToast("Failed to update", "error");
+  }
+};
+
+// ========== HOME BATTER ==========
+let homeItemCounter = 0;
+
+function renderHomeBatter() {
+  const dateStr = document.getElementById("tools-date").value;
+  const container = document.getElementById("home-items-container");
+  homeItemCounter = 0;
+  container.innerHTML = "";
+
+  // Load existing home order for this date
+  const existing = state.allOrders.find(o => o.delivery_date === dateStr && o.is_home);
+  if (existing) {
+    state._homeEditId = existing.id;
+    for (const item of existing.items) addHomeItemRow(item);
+    document.getElementById("home-delete-btn").style.display = "block";
+  } else {
+    state._homeEditId = null;
+    addHomeItemRow();
+    document.getElementById("home-delete-btn").style.display = "none";
+  }
+}
+
+window.addHomeItemRow = (item) => {
+  const id = homeItemCounter++;
+  const container = document.getElementById("home-items-container");
+  const div = document.createElement("div");
+  div.className = "item-row"; div.id = `hitem-${id}`;
+  div.innerHTML = `
+    <button class="btn-remove" onclick="this.closest('.item-row').remove()">&times;</button>
+    <select id="hsel-${id}" onchange="onHomeProductChange(${id}, this)" style="padding-right:36px;">${buildProductOptions()}</select>
+    <div class="row" style="margin-top:8px;">
+      <div><input type="text" id="hq-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"></div>
+      <div class="small"><select id="hu-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
+    </div>`;
+  container.appendChild(div);
+
+  if (item && typeof item === "object") {
+    const sel = document.getElementById(`hsel-${id}`);
+    for (let i = 0; i < sel.options.length; i++) { if (sel.options[i].textContent === item.name) { sel.selectedIndex = i; break; } }
+    document.getElementById(`hq-${id}`).value = item.quantity;
+    document.getElementById(`hu-${id}`).value = item.unit;
+  }
+  if (!item) div.scrollIntoView({ behavior: "smooth", block: "center" });
+};
+
+window.onHomeProductChange = (id, sel) => {
+  const opt = sel.options[sel.selectedIndex];
+  if (opt.dataset.unit) document.getElementById(`hu-${id}`).value = opt.dataset.unit;
+};
+
+window.saveHomeBatter = async () => {
+  const dateStr = document.getElementById("tools-date").value;
+  if (!dateStr) { showToast("Select a date first", "error"); return; }
+
+  const rows = document.querySelectorAll("#home-items-container .item-row");
+  const items = [];
+  for (const row of rows) {
+    const sel = row.querySelector("select");
+    if (!sel.value) continue;
+    const name = sel.options[sel.selectedIndex].textContent;
+    const id = row.id.split("-")[1];
+    const qty = parseNum(document.getElementById(`hq-${id}`).value);
+    const unit = document.getElementById(`hu-${id}`).value;
+    if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
+    items.push({ name, quantity: qty, unit, price: 0 });
+  }
+  if (items.length === 0) { showToast("Add at least one item", "error"); return; }
+
+  const btn = document.getElementById("home-save-btn");
+  btn.disabled = true; btn.textContent = "Saving...";
+
+  try {
+    if (state._homeEditId) {
+      await updateDoc(doc(db, "orders", state._homeEditId), { items });
+      const existing = state.allOrders.find(o => o.id === state._homeEditId);
+      if (existing) existing.items = items;
+      showToast("Home batter updated");
+    } else {
+      const docRef = await addDoc(collection(db, "orders"), {
+        items, customer_name: "Home", delivery_date: dateStr, notes: "",
+        is_home: true, needs_delivery: false, delivery_fee: 0,
+        delivered: false, paid: true,
+        created_by: auth.currentUser.email, timestamp: serverTimestamp()
+      });
+      state.allOrders.push({
+        id: docRef.id, items, customer_name: "Home", delivery_date: dateStr, notes: "",
+        is_home: true, needs_delivery: false, delivery_fee: 0,
+        delivered: false, paid: true, created_by: auth.currentUser.email
+      });
+      state._homeEditId = docRef.id;
+      showToast("Home batter saved");
+    }
+    state.fullOrdersLoaded = false;
+  } catch (_e) {
+    showToast("Failed to save", "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "Save";
+  }
+};
+
+window.deleteHomeBatter = async () => {
+  if (!state._homeEditId) return;
+  if (!confirm("Delete home batter for this date?")) return;
+  try {
+    await deleteDoc(doc(db, "orders", state._homeEditId));
+    state.allOrders = state.allOrders.filter(o => o.id !== state._homeEditId);
+    state._homeEditId = null;
+    state.fullOrdersLoaded = false;
+    renderHomeBatter();
+    showToast("Home batter deleted");
+  } catch (_e) {
+    showToast("Failed to delete", "error");
+  }
+};
 
 // ========== PAYMENT REMINDERS ==========
 function getUnpaidDeliveredByCustomer() {

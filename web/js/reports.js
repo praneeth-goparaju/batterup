@@ -20,6 +20,7 @@ export function renderReports() {
   let ordersThisMonth = 0, ordersLastMonth = 0;
 
   for (const o of state.allOrders) {
+    if (o.is_home) continue;
     const t = orderTotal(o);
     if (!o.paid) { totalUnpaid += t; unpaidByCustomer[o.customer_name] = (unpaidByCustomer[o.customer_name] || 0) + t; }
     if (o.paid && o.delivery_date >= thisMonth + "-01") totalPaidMonth += t;
@@ -40,6 +41,7 @@ export function renderReports() {
 
   const productTotals = {};
   for (const o of state.allOrders) {
+    if (o.is_home) continue;
     if (o.delivery_date < thisMonth + "-01") continue;
     for (const i of o.items) {
       if (!productTotals[i.name]) productTotals[i.name] = { qty: 0, revenue: 0 };

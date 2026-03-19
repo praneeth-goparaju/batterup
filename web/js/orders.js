@@ -1,5 +1,5 @@
-import { state, db, auth, ICON_EDIT, ICON_DELETE, DELIVERY_FEE, collection, doc, addDoc, getDocs, updateDoc, deleteDoc, query, orderBy, where, serverTimestamp } from './state.js';
-import { esc, showToast, formatDate, orderTotal, parseNum, openModal, closeModal } from './helpers.js';
+import { state, db, auth, ICON_EDIT, ICON_DELETE, collection, doc, addDoc, getDocs, updateDoc, deleteDoc, query, orderBy, where, serverTimestamp } from './state.js';
+import { esc, showToast, formatDate, orderTotal, getDeliveryFee, parseNum, openModal, closeModal } from './helpers.js';
 import { buildProductOptions } from './products.js';
 
 let itemCounter = 0;
@@ -40,7 +40,7 @@ export function renderOrdersList() {
   const list = document.getElementById("orders-list");
   const searchTerm = (document.getElementById("order-search")?.value || "").toLowerCase();
   const today = new Date().toISOString().split("T")[0];
-  let upcoming = state.allOrders.filter(d => d.delivery_date >= today);
+  let upcoming = state.allOrders.filter(d => d.delivery_date >= today && !d.is_home);
   if (searchTerm) upcoming = upcoming.filter(d => d.customer_name.toLowerCase().includes(searchTerm));
 
   if (upcoming.length === 0) {
@@ -63,7 +63,8 @@ export function renderOrdersList() {
     for (const d of orders) {
       const total = orderTotal(d);
       const itemsStr = d.items.map(i => `${i.quantity} ${i.unit} ${esc(i.name)}`).join(", ");
-      const deliveryStr = d.needs_delivery ? ` + &#x1f69a; &euro;${DELIVERY_FEE.toFixed(2)}` : "";
+      const dFee = getDeliveryFee(d);
+      const deliveryStr = dFee > 0 ? ` + &#x1f69a; &euro;${dFee.toFixed(2)}` : "";
       const paidClass = d.paid ? "paid" : "unpaid";
       const badgeClass = d.paid ? "yes" : "no";
       const badgeText = d.paid ? "PAID" : "UNPAID";
@@ -132,17 +133,26 @@ window.deleteOrder = async (id) => {
 };
 
 // ========== ITEM ROWS + RUNNING TOTAL ==========
-function updateRunningTotal() {
+function calcRunningTotal(containerId, qtyPrefix, pricePrefix, ltPrefix, feeId, totalId) {
   let total = 0;
-  for (const row of document.querySelectorAll("#items-container .item-row")) {
+  for (const row of document.querySelectorAll(`#${containerId} .item-row`)) {
     const id = row.id.split("-")[1];
-    const price = parseNum(document.getElementById(`price-${id}`)?.value) || 0;
-    total += price;
+    const qty = parseNum(document.getElementById(`${qtyPrefix}${id}`)?.value) || 0;
+    const price = parseNum(document.getElementById(`${pricePrefix}${id}`)?.value) || 0;
+    const line = qty * price;
+    total += line;
+    const ltEl = document.getElementById(`${ltPrefix}${id}`);
+    if (ltEl) ltEl.textContent = line > 0 ? `\u20AC${line.toFixed(2)}` : "";
   }
-  if (document.getElementById("needs-delivery")?.checked) total += DELIVERY_FEE;
-  const el = document.getElementById("running-total");
-  if (total > 0) { el.style.display = "block"; el.textContent = `Total: \u20AC${total.toFixed(2)}`; state.formDirty = true; }
+  total += parseFloat(document.getElementById(feeId)?.value) || 0;
+  const el = document.getElementById(totalId);
+  if (total > 0) { el.style.display = "block"; el.textContent = `Total: \u20AC${total.toFixed(2)}`; }
   else { el.style.display = "none"; }
+  return total;
+}
+
+function updateRunningTotal() {
+  if (calcRunningTotal("items-container", "qty-", "price-", "lt-", "delivery-fee", "running-total") > 0) state.formDirty = true;
 }
 
 window.addItemRow = () => {
@@ -153,32 +163,40 @@ window.addItemRow = () => {
     <button class="btn-remove" onclick="removeItem(${id})">&times;</button>
     <select onchange="onProductChange(${id}, this)" style="padding-right:36px;">${buildProductOptions()}</select>
     <div class="row" style="margin-top:8px;">
-      <div><input type="text" id="qty-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="recalcPrice(${id}); updateRunningTotal()"></div>
+      <div><input type="text" id="qty-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()"></div>
       <div class="small"><select id="unit-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
-      <div><input type="text" id="price-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()" readonly></div>
-    </div>`;
+      <div><input type="text" id="price-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()"></div>
+    </div>
+    <div class="line-total" id="lt-${id}"></div>`;
   document.getElementById("items-container").appendChild(div);
   div.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 window.updateRunningTotal = updateRunningTotal;
 
-window.recalcPrice = (id) => {
-  const priceEl = document.getElementById(`price-${id}`);
-  if (!priceEl?.dataset.unitPrice && priceEl?.dataset.unitPrice !== "0") return;
-  const unitPrice = parseFloat(priceEl.dataset.unitPrice);
-  const qty = parseNum(document.getElementById(`qty-${id}`)?.value) || 0;
-  priceEl.value = qty > 0 ? (unitPrice * qty).toFixed(2) : "";
+function updateEditRunningTotal() {
+  calcRunningTotal("edit-items-container", "eq-", "ep-", "elt-", "edit-delivery-fee", "edit-running-total");
+}
+window.updateEditRunningTotal = updateEditRunningTotal;
+
+window.toggleDeliveryFee = (btn, form) => {
+  const group = btn.parentElement;
+  const hiddenId = form === "edit" ? "edit-delivery-fee" : "delivery-fee";
+  const fee = btn.dataset.fee;
+  const wasActive = btn.classList.contains("active");
+  group.querySelectorAll(".delivery-toggle").forEach(b => b.classList.remove("active"));
+  if (wasActive) {
+    document.getElementById(hiddenId).value = "0";
+  } else {
+    btn.classList.add("active");
+    document.getElementById(hiddenId).value = fee;
+  }
+  if (form === "new") updateRunningTotal();
+  if (form === "edit") updateEditRunningTotal();
 };
 
 window.onProductChange = (id, sel) => {
   const opt = sel.options[sel.selectedIndex];
-  if (opt.dataset.price) {
-    const priceEl = document.getElementById(`price-${id}`);
-    priceEl.dataset.unitPrice = opt.dataset.price;
-    const qty = parseNum(document.getElementById(`qty-${id}`)?.value) || 0;
-    priceEl.value = qty > 0 ? (parseFloat(opt.dataset.price) * qty).toFixed(2) : parseFloat(opt.dataset.price).toFixed(2);
-    updateRunningTotal();
-  }
+  if (opt.dataset.price) { document.getElementById(`price-${id}`).value = opt.dataset.price; updateRunningTotal(); }
   if (opt.dataset.unit) document.getElementById(`unit-${id}`).value = opt.dataset.unit;
   state.formDirty = true;
 };
@@ -202,31 +220,31 @@ window.submitOrder = async () => {
     const id = row.id.split("-")[1];
     const qty = parseNum(document.getElementById(`qty-${id}`).value);
     const unit = document.getElementById(`unit-${id}`).value;
-    const priceEl = document.getElementById(`price-${id}`);
-    const unitPrice = parseFloat(priceEl.dataset.unitPrice) || parseNum(priceEl.value);
+    const price = parseNum(document.getElementById(`price-${id}`).value);
     if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
-    if (isNaN(unitPrice) || unitPrice < 0) { showToast(`Enter price for ${name}`, "error"); return; }
-    items.push({ name, quantity: qty, unit, price: unitPrice });
+    if (isNaN(price) || price < 0) { showToast(`Enter price for ${name}`, "error"); return; }
+    items.push({ name, quantity: qty, unit, price });
   }
   if (items.length === 0) { showToast("Add at least one item", "error"); return; }
 
   const btn = document.getElementById("submit-btn");
   btn.disabled = true; btn.textContent = "Saving...";
-  const needsDelivery = document.getElementById("needs-delivery").checked;
+  const deliveryFee = parseFloat(document.getElementById("delivery-fee").value) || 0;
   try {
     const docRef = await addDoc(collection(db, "orders"), {
       items, customer_name: customer, delivery_date: deliveryDate, notes,
-      needs_delivery: needsDelivery, delivered: false,
+      delivery_fee: deliveryFee, needs_delivery: deliveryFee > 0, delivered: false,
       paid: false, created_by: auth.currentUser.email, timestamp: serverTimestamp()
     });
     state.allOrders.push({
       id: docRef.id, items, customer_name: customer, delivery_date: deliveryDate, notes,
-      needs_delivery: needsDelivery, delivered: false, paid: false, created_by: auth.currentUser.email
+      delivery_fee: deliveryFee, needs_delivery: deliveryFee > 0, delivered: false, paid: false, created_by: auth.currentUser.email
     });
     state.fullOrdersLoaded = false;
     document.getElementById("customer").value = "";
     document.getElementById("notes").value = "";
-    document.getElementById("needs-delivery").checked = false;
+    document.getElementById("delivery-fee").value = "0";
+    document.querySelectorAll("#tab-new .delivery-toggle").forEach(b => b.classList.remove("active"));
     document.getElementById("items-container").innerHTML = "";
     document.getElementById("running-total").style.display = "none";
     state.formDirty = false;
@@ -243,10 +261,15 @@ window.openEditModal = (id) => {
   if (!d) { showToast("Order not found", "error"); return; }
   document.getElementById("edit-customer").value = d.customer_name;
   document.getElementById("edit-delivery-date").value = d.delivery_date;
-  document.getElementById("edit-needs-delivery").checked = !!d.needs_delivery;
+  const editFee = getDeliveryFee(d);
+  document.getElementById("edit-delivery-fee").value = String(editFee);
+  document.querySelectorAll("#edit-modal .delivery-toggle").forEach(b => {
+    b.classList.toggle("active", parseInt(b.dataset.fee) === editFee);
+  });
   document.getElementById("edit-notes").value = d.notes || "";
   document.getElementById("edit-items-container").innerHTML = "";
   for (const item of d.items) window.addEditItemRow(item);
+  updateEditRunningTotal();
   openModal("edit-modal");
 };
 
@@ -255,42 +278,28 @@ window.addEditItemRow = (item) => {
   const div = document.createElement("div");
   div.className = "item-row"; div.id = `eitem-${id}`;
   div.innerHTML = `
-    <button class="btn-remove" onclick="this.closest('.item-row').remove()">&times;</button>
+    <button class="btn-remove" onclick="this.closest('.item-row').remove(); updateEditRunningTotal()">&times;</button>
     <select id="esel-${id}" onchange="onEditProductChange(${id}, this)" style="padding-right:36px;">${buildProductOptions()}</select>
     <div class="row" style="margin-top:8px;">
-      <div><input type="text" id="eq-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="recalcEditPrice(${id})"></div>
+      <div><input type="text" id="eq-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateEditRunningTotal()"></div>
       <div class="small"><select id="eu-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
-      <div><input type="text" id="ep-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" readonly></div>
-    </div>`;
+      <div><input type="text" id="ep-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateEditRunningTotal()"></div>
+    </div>
+    <div class="line-total" id="elt-${id}"></div>`;
   document.getElementById("edit-items-container").appendChild(div);
   if (item && typeof item === "object") {
     const sel = document.getElementById(`esel-${id}`);
     for (let i = 0; i < sel.options.length; i++) { if (sel.options[i].textContent === item.name) { sel.selectedIndex = i; break; } }
     document.getElementById(`eq-${id}`).value = item.quantity;
     document.getElementById(`eu-${id}`).value = item.unit;
-    const priceEl = document.getElementById(`ep-${id}`);
-    priceEl.dataset.unitPrice = item.price;
-    priceEl.value = (item.price * item.quantity).toFixed(2);
+    document.getElementById(`ep-${id}`).value = item.price;
   }
   if (!item) div.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
-window.recalcEditPrice = (id) => {
-  const priceEl = document.getElementById(`ep-${id}`);
-  if (!priceEl?.dataset.unitPrice && priceEl?.dataset.unitPrice !== "0") return;
-  const unitPrice = parseFloat(priceEl.dataset.unitPrice);
-  const qty = parseNum(document.getElementById(`eq-${id}`)?.value) || 0;
-  priceEl.value = qty > 0 ? (unitPrice * qty).toFixed(2) : "";
-};
-
 window.onEditProductChange = (id, sel) => {
   const opt = sel.options[sel.selectedIndex];
-  if (opt.dataset.price) {
-    const priceEl = document.getElementById(`ep-${id}`);
-    priceEl.dataset.unitPrice = opt.dataset.price;
-    const qty = parseNum(document.getElementById(`eq-${id}`)?.value) || 0;
-    priceEl.value = qty > 0 ? (parseFloat(opt.dataset.price) * qty).toFixed(2) : parseFloat(opt.dataset.price).toFixed(2);
-  }
+  if (opt.dataset.price) { document.getElementById(`ep-${id}`).value = opt.dataset.price; updateEditRunningTotal(); }
   if (opt.dataset.unit) document.getElementById(`eu-${id}`).value = opt.dataset.unit;
 };
 
@@ -309,20 +318,19 @@ window.saveEditOrder = async () => {
     const id = row.id.split("-")[1];
     const qty = parseNum(document.getElementById(`eq-${id}`).value);
     const unit = document.getElementById(`eu-${id}`).value;
-    const priceEl = document.getElementById(`ep-${id}`);
-    const unitPrice = parseFloat(priceEl.dataset.unitPrice) || parseNum(priceEl.value);
+    const price = parseNum(document.getElementById(`ep-${id}`).value);
     if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
-    if (isNaN(unitPrice) || unitPrice < 0) { showToast(`Enter price for ${name}`, "error"); return; }
-    items.push({ name, quantity: qty, unit, price: unitPrice });
+    if (isNaN(price) || price < 0) { showToast(`Enter price for ${name}`, "error"); return; }
+    items.push({ name, quantity: qty, unit, price });
   }
   if (items.length === 0) { showToast("Add at least one item", "error"); return; }
   const btn = document.getElementById("save-edit-btn");
   btn.disabled = true; btn.textContent = "Saving...";
   try {
-    const editNeedsDelivery = document.getElementById("edit-needs-delivery").checked;
-    await updateDoc(doc(db, "orders", state.editingOrderId), { items, customer_name: customer, delivery_date: deliveryDate, notes, needs_delivery: editNeedsDelivery });
+    const editDeliveryFee = parseFloat(document.getElementById("edit-delivery-fee").value) || 0;
+    await updateDoc(doc(db, "orders", state.editingOrderId), { items, customer_name: customer, delivery_date: deliveryDate, notes, delivery_fee: editDeliveryFee, needs_delivery: editDeliveryFee > 0 });
     const idx = state.allOrders.findIndex(x => x.id === state.editingOrderId);
-    if (idx >= 0) Object.assign(state.allOrders[idx], { items, customer_name: customer, delivery_date: deliveryDate, notes, needs_delivery: editNeedsDelivery });
+    if (idx >= 0) Object.assign(state.allOrders[idx], { items, customer_name: customer, delivery_date: deliveryDate, notes, delivery_fee: editDeliveryFee, needs_delivery: editDeliveryFee > 0 });
     state.fullOrdersLoaded = false;
     closeModal("edit-modal"); renderOrdersList(); showToast("Order updated");
   } catch (_e) { showToast("Failed to save", "error"); }
