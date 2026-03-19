@@ -136,7 +136,7 @@ window.openCustDetail = (id) => {
   document.getElementById("cust-detail-balance").innerHTML = `
     <div style="display:flex;gap:10px;">
       <div class="report-card" style="flex:1;margin:0;"><div class="stat-big danger" style="font-size:1.3rem;">&euro;${unpaid.toFixed(2)}</div><div class="stat-label">Unpaid</div></div>
-      <div class="report-card" style="flex:1;margin:0;"><div class="stat-big" style="font-size:1.3rem;color:#333;">&euro;${totalSpent.toFixed(2)}</div><div class="stat-label">Total</div></div>
+      <div class="report-card" style="flex:1;margin:0;"><div class="stat-big" style="font-size:1.3rem;color:var(--text);">&euro;${totalSpent.toFixed(2)}</div><div class="stat-label">Total</div></div>
     </div>`;
   if (custOrders.length === 0) {
     document.getElementById("cust-detail-orders").innerHTML = '<div class="empty-state" style="padding:24px;"><p>No orders yet.</p></div>';

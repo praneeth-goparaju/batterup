@@ -36,7 +36,7 @@ export function renderReports() {
   const growthStr = ordersLastMonth === 0
     ? `<span style="color:var(--gray);">No data last month</span>`
     : (growthPct >= 0
-      ? `<span style="color:#2e7d32;">+${growthPct}%</span>`
+      ? `<span style="color:var(--success);">+${growthPct}%</span>`
       : `<span style="color:var(--red);">${growthPct}%</span>`);
 
   const productTotals = {};
@@ -53,7 +53,7 @@ export function renderReports() {
 
   const unpaidRows = Object.entries(unpaidByCustomer).sort((a, b) => b[1] - a[1])
     .map(([n, a]) => `<div class="stat-row"><span class="label">${esc(n)}</span><span class="value danger">&euro;${a.toFixed(2)}</span></div>`)
-    .join("") || '<div class="stat-row"><span class="label" style="color:#2e7d32;">All paid!</span></div>';
+    .join("") || '<div class="stat-row"><span class="label" style="color:var(--success);">All paid!</span></div>';
 
   const productRows = Object.entries(productTotals).sort((a, b) => b[1].revenue - a[1].revenue)
     .map(([n, d]) => `<div class="stat-row"><span class="label">${esc(n)} (${d.qty})</span><span class="value">&euro;${d.revenue.toFixed(2)}</span></div>`)
@@ -69,8 +69,8 @@ export function renderReports() {
       <div class="report-card"><div class="stat-big success">&euro;${totalPaidMonth.toFixed(2)}</div><div class="stat-label">Paid (Month)</div></div>
     </div>
     <div class="report-row-2">
-      <div class="report-card"><div class="stat-big" style="color:#333;">${ordersThisMonth}</div><div class="stat-label">Orders This Month</div></div>
-      <div class="report-card"><div class="stat-big" style="color:#333;">${ordersLastMonth}</div><div class="stat-label">Last Month ${growthStr}</div></div>
+      <div class="report-card"><div class="stat-big" style="color:var(--text);">${ordersThisMonth}</div><div class="stat-label">Orders This Month</div></div>
+      <div class="report-card"><div class="stat-big" style="color:var(--text);">${ordersLastMonth}</div><div class="stat-label">Last Month ${growthStr}</div></div>
     </div>
     <div class="report-card"><h3>Outstanding by Customer</h3>${unpaidRows}</div>
     <div class="report-card"><h3>Top Customers This Month</h3>${topCustRows}</div>

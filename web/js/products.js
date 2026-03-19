@@ -34,7 +34,7 @@ export function renderProducts() {
     const statsArr = [];
     if (rmCount > 0) statsArr.push(`${rmCount} raw material${rmCount !== 1 ? "s" : ""}`);
     if (monthOrders > 0) statsArr.push(`${monthOrders} order${monthOrders !== 1 ? "s" : ""} this month`);
-    const statsLine = statsArr.length > 0 ? `<div style="font-size:0.78rem;color:#aaa;margin-top:3px;">${statsArr.join(" \u00b7 ")}</div>` : "";
+    const statsLine = statsArr.length > 0 ? `<div style="font-size:0.78rem;color:var(--gray);margin-top:3px;">${statsArr.join(" \u00b7 ")}</div>` : "";
     return `<div class="card product-card">
       <div class="product-info">
         <div class="name">${esc(p.name)}</div>

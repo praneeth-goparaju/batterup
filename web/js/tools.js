@@ -142,7 +142,7 @@ async function loadAppConfig() {
 function renderRouteInfo(label, stops, stopETAs, totalDistanceM, totalDurationS) {
   const distKm = (totalDistanceM / 1000).toFixed(1);
   const durMin = Math.round(totalDurationS / 60);
-  const stopsHtml = stops.map((s, i) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;"><span>${i + 1}. ${esc(s.name)}</span><span style="color:var(--gray);font-size:0.85rem;">${stopETAs[i] || ''}</span></div>`).join('');
+  const stopsHtml = stops.map((s, i) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--divider);"><span>${i + 1}. ${esc(s.name)}</span><span style="color:var(--gray);font-size:0.85rem;">${stopETAs[i] || ''}</span></div>`).join('');
   document.getElementById("route-info").innerHTML = `
     <div class="route-info">
       <div class="route-label">${label} \u00b7 ${distKm} km \u00b7 ~${durMin} min</div>
@@ -384,7 +384,7 @@ function showPreviewOverlay(title, messages, bgColor) {
 
   // 2. Bottom sheet panel
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:white;border-radius:16px 16px 0 0;z-index:10000;';
+  panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-radius:16px 16px 0 0;z-index:10000;';
 
   // 3. Header
   const header = document.createElement('div');
@@ -395,7 +395,7 @@ function showPreviewOverlay(title, messages, bgColor) {
   titleEl.style.cssText = 'font-weight:700;font-size:1.05rem;';
   titleEl.textContent = title;
   const subtitle = document.createElement('div');
-  subtitle.style.cssText = 'color:#888;font-size:0.82rem;margin-top:2px;';
+  subtitle.style.cssText = 'color:var(--gray);font-size:0.82rem;margin-top:2px;';
   subtitle.textContent = `${messages.length} message${messages.length !== 1 ? 's' : ''}`;
   header.append(handle, titleEl, subtitle);
 
@@ -406,10 +406,10 @@ function showPreviewOverlay(title, messages, bgColor) {
     const bubble = document.createElement('div');
     bubble.style.cssText = `background:${bgColor};border-radius:12px 12px 12px 4px;padding:10px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,0.06);`;
     const nameEl = document.createElement('div');
-    nameEl.style.cssText = 'font-weight:600;font-size:0.82rem;color:#075e54;margin-bottom:4px;';
+    nameEl.style.cssText = 'font-weight:600;font-size:0.82rem;color:var(--success);margin-bottom:4px;';
     nameEl.textContent = m.to;
     const textEl = document.createElement('div');
-    textEl.style.cssText = 'font-size:0.85rem;white-space:pre-wrap;line-height:1.4;color:#333;';
+    textEl.style.cssText = 'font-size:0.85rem;white-space:pre-wrap;line-height:1.4;color:var(--text);';
     textEl.textContent = m.text;
     bubble.append(nameEl, textEl);
 
@@ -429,7 +429,7 @@ function showPreviewOverlay(title, messages, bgColor) {
 
   // 5. Footer with Close button
   const footer = document.createElement('div');
-  footer.style.cssText = 'padding:12px 20px 20px;border-top:1px solid #eee;background:white;';
+  footer.style.cssText = 'padding:12px 20px 20px;border-top:1px solid var(--divider);background:var(--bg);';
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'Close';
   closeBtn.style.cssText = 'width:100%;padding:12px;border:none;border-radius:10px;background:#e74c3c;color:white;font-weight:600;cursor:pointer;font-size:0.95rem;';
@@ -531,15 +531,15 @@ function renderToolsRawMaterials() {
   // 2. Breakdown by product
   const breakdownRows = Object.entries(rmByProduct).map(([pName, pData]) => {
     const matRows = Object.values(pData.materials).sort((a, b) => b.qty - a.qty)
-      .map(rm => `<div style="display:flex;justify-content:space-between;padding:3px 0 3px 12px;font-size:0.85rem;"><span style="color:#666;">${esc(rm.name)}</span><span>${fmtQty(rm.qty)} ${esc(rm.unit)}</span></div>`)
+      .map(rm => `<div style="display:flex;justify-content:space-between;padding:3px 0 3px 12px;font-size:0.85rem;"><span style="color:var(--text-tertiary);">${esc(rm.name)}</span><span>${fmtQty(rm.qty)} ${esc(rm.unit)}</span></div>`)
       .join("");
-    return `<div style="margin-bottom:10px;"><div style="font-weight:600;font-size:0.9rem;padding-bottom:4px;border-bottom:1px solid #eee;">${esc(pName)} <span style="font-weight:400;color:var(--gray);">(${fmtQty(pData.totalQty)} ${esc(pData.unit)})</span></div>${matRows}</div>`;
+    return `<div style="margin-bottom:10px;"><div style="font-weight:600;font-size:0.9rem;padding-bottom:4px;border-bottom:1px solid var(--divider);">${esc(pName)} <span style="font-weight:400;color:var(--gray);">(${fmtQty(pData.totalQty)} ${esc(pData.unit)})</span></div>${matRows}</div>`;
   }).join("");
 
   container.innerHTML = `
-    <div style="font-weight:700;font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Total Materials</div>
+    <div style="font-weight:700;font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Total Materials</div>
     ${shoppingRows}
-    <div style="margin-top:20px;font-weight:700;font-size:0.85rem;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Breakdown by Product</div>
+    <div style="margin-top:20px;font-weight:700;font-size:0.85rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Breakdown by Product</div>
     ${breakdownRows}`;
 }
 

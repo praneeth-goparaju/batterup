@@ -80,7 +80,7 @@ export function renderOrdersList() {
           <div class="meta"><span>${esc(d.customer_name.split(' ')[0])}</span> <span class="paid-badge ${badgeClass}">${badgeText}</span>${deliveredBadge}</div>
           <div class="items-list">${itemsStr}${deliveryStr}</div>
           <div class="order-total">Total: &euro;${total.toFixed(2)}</div>
-          ${d.notes ? `<div style="font-size:0.8rem;color:#888;margin-top:4px;font-style:italic;">${esc(d.notes)}</div>` : ""}
+          ${d.notes ? `<div style="font-size:0.8rem;color:var(--gray);margin-top:4px;font-style:italic;">${esc(d.notes)}</div>` : ""}
           <div class="card-actions">
             ${toggleBtn}
             ${deliveredBtn}
