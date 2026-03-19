@@ -37,6 +37,11 @@ export function esc(str) {
   return String(str).replace(/[&<>"']/g, c => ESC_MAP[c]);
 }
 
+export function shortName(name) {
+  const parts = name.split(' ');
+  return parts.length > 1 ? parts.slice(0, -1).join(' ') : name;
+}
+
 export function parseNum(val) {
   return parseFloat(String(val).replace(",", "."));
 }

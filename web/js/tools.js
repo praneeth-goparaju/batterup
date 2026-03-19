@@ -1,5 +1,5 @@
 import { state, db, auth, collection, doc, addDoc, getDocs, getDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from './state.js';
-import { esc, showToast, orderTotal, friendlyDate, fmtQty, buildRawMaterialsByProduct, parseNum } from './helpers.js';
+import { esc, showToast, orderTotal, friendlyDate, fmtQty, shortName, buildRawMaterialsByProduct, parseNum } from './helpers.js';
 import { buildProductOptions } from './products.js';
 
 function buildCustByName() {
@@ -390,7 +390,7 @@ function showPreviewOverlay(title, messages, bgColor) {
   const header = document.createElement('div');
   header.style.cssText = 'padding:12px 20px 8px;text-align:center;';
   const handle = document.createElement('div');
-  handle.style.cssText = 'width:36px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 10px;';
+  handle.style.cssText = 'width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 10px;';
   const titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-weight:700;font-size:1.05rem;';
   titleEl.textContent = title;
@@ -420,7 +420,7 @@ function showPreviewOverlay(title, messages, bgColor) {
       sendLink.target = '_blank';
       sendLink.rel = 'noopener';
       sendLink.textContent = 'Send \u27a4';
-      sendLink.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 16px;background:#25D366;color:white;border-radius:20px;font-size:0.82rem;font-weight:600;text-decoration:none;';
+      sendLink.style.cssText = 'display:inline-block;margin-top:8px;padding:6px 16px;background:var(--green);color:white;border-radius:20px;font-size:0.82rem;font-weight:600;text-decoration:none;';
       bubble.appendChild(sendLink);
     }
 
@@ -432,7 +432,7 @@ function showPreviewOverlay(title, messages, bgColor) {
   footer.style.cssText = 'padding:12px 20px 20px;border-top:1px solid var(--divider);background:var(--bg);';
   const closeBtn = document.createElement('button');
   closeBtn.textContent = 'Close';
-  closeBtn.style.cssText = 'width:100%;padding:12px;border:none;border-radius:10px;background:#e74c3c;color:white;font-weight:600;cursor:pointer;font-size:0.95rem;';
+  closeBtn.style.cssText = 'width:100%;padding:12px;border:none;border-radius:10px;background:var(--red);color:white;font-weight:600;cursor:pointer;font-size:0.95rem;';
   footer.appendChild(closeBtn);
 
   // 6. Assemble & insert
@@ -499,7 +499,7 @@ window.notifyCustomers = () => {
   }
 
   if (messages.length === 0) { showToast("No customers with phone numbers", "error"); return; }
-  showPreviewOverlay("Order Notifications", messages, "#dcf8c6");
+  showPreviewOverlay("Order Notifications", messages, "var(--green-light)");
 };
 
 // ========== RAW MATERIALS (TOOLS TAB) ==========
@@ -522,7 +522,7 @@ function renderToolsRawMaterials() {
   }
   const sortedMats = [...allMats.values()].sort((a, b) => a.name.localeCompare(b.name));
   const shoppingRows = sortedMats.map(rm =>
-    `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;">
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--divider);">
       <span style="font-size:0.95rem;">${esc(rm.name)}</span>
       <span style="font-weight:700;font-size:0.95rem;white-space:nowrap;">${fmtQty(rm.qty)} ${esc(rm.unit)}</span>
     </div>`
@@ -590,8 +590,9 @@ async function renderDeliveryRun() {
   }
 
   // Split into pending and done
-  const pendingStops = stops.filter(s => !s.orders.every(o => o.delivered));
-  const doneStops = stops.filter(s => s.orders.every(o => o.delivered));
+  const indexedStops = stops.map((s, i) => ({ ...s, idx: i }));
+  const pendingStops = indexedStops.filter(s => !s.orders.every(o => o.delivered));
+  const doneStops = indexedStops.filter(s => s.orders.every(o => o.delivered));
 
   // Progress
   const totalStops = stops.length;
@@ -603,37 +604,37 @@ async function renderDeliveryRun() {
       <div style="font-weight:700;font-size:1.1rem;">${doneCount === totalStops ? 'All Delivered! &#x1f389;' : `${doneCount} of ${totalStops} delivered`}</div>
       <div class="dr-progress-bar"><div class="dr-progress-fill" style="width:${pct}%"></div></div>
       <div class="dr-progress-text">${pct}% complete</div>
-    </div>
-    ${route?.mapsUrl ? `<button class="dr-open-maps" onclick="openInMaps()">&#x1f4cd; Open Full Route in Maps</button>` : ''}`;
+    </div>`;
 
   let html = '';
 
   // Pending cards
+  const mapSvg = '<svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>';
+  const callSvg = '<svg viewBox="0 0 24 24" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>';
+
   pendingStops.forEach((stop) => {
-    const idx = stops.indexOf(stop);
+    const idx = stop.idx;
     const cust = custByName.get(stop.name);
-    const items = stop.orders.flatMap(o => o.items.map(it => `<span>${fmtQty(it.quantity)} ${esc(it.unit)} ${esc(it.name)}</span>`)).join(' ');
+    const allItems = stop.orders.flatMap(o => o.items.map(it => `${fmtQty(it.quantity)} ${esc(it.unit)} ${esc(it.name)}`));
     const total = stop.orders.reduce((s, o) => s + orderTotal(o), 0);
     const allPaid = stop.orders.every(o => o.paid);
+    const itemsHtml = allItems.map(item => `<div class="dr-item">${item}</div>`).join('');
     html += `<div class="dr-card" id="dr-stop-${idx}">
-      <div class="dr-header">
+      <div class="dr-top">
         <div class="dr-step-num">${idx + 1}</div>
-        <div class="dr-header-info">
-          <div class="dr-name">${esc(stop.name)}</div>
-          <div class="dr-meta">
-            ${stop.eta ? `<span class="dr-eta">${esc(stop.eta)}</span>` : ''}
-            ${allPaid
-              ? `<span class="dr-badge paid">PAID</span>`
-              : `<span class="dr-badge unpaid">&euro;${total.toFixed(2)}</span>`}
-          </div>
+        <div class="dr-name">${esc(shortName(stop.name))}</div>
+        <div class="dr-right">
+          ${stop.eta ? `<span class="dr-eta">${esc(stop.eta)}</span>` : ''}
+          ${allPaid
+            ? `<span class="dr-badge paid">PAID</span>`
+            : `<span class="dr-badge unpaid">&euro;${total.toFixed(2)}</span>`}
         </div>
-        <div class="dr-quick-actions">
-          ${stop.address ? `<button class="dr-icon-btn navigate" data-address="${esc(stop.address)}" onclick="drNavigate(this)">&#x1f4cd;</button>` : ''}
-          ${cust?.phone ? `<button class="dr-icon-btn call" data-phone="${esc(cust.phone)}" onclick="drCall(this)">&#x1f4de;</button>` : ''}
-        </div>
+        ${cust?.phone ? `<button class="dr-btn-call" data-phone="${esc(cust.phone)}" onclick="drCall(this)">${callSvg}</button>` : ''}
       </div>
-      <div class="dr-items">${items}</div>
-      <div class="dr-bottom">
+      <div class="dr-items-list">${itemsHtml}</div>
+
+      <div class="dr-actions">
+        ${stop.address ? `<button class="dr-btn-map" data-address="${esc(stop.address)}" onclick="drNavigate(this)">${mapSvg} Navigate</button>` : ''}
         ${!allPaid ? `<button class="dr-btn-paid" onclick="drTogglePaid(${idx}, true)">Paid</button>` : ''}
         <button class="dr-btn-delivered" onclick="drToggleDelivered(${idx}, true)">&#x2713; Delivered</button>
       </div>
@@ -649,17 +650,21 @@ async function renderDeliveryRun() {
       <div id="dr-done-list" style="display:none;">`;
 
     doneStops.forEach((stop) => {
-      const idx = stops.indexOf(stop);
+      const idx = stop.idx;
       html += `<div class="dr-done-card">
-        <div class="dr-header">
+        <div class="dr-top">
           <div class="dr-step-num">${idx + 1}</div>
-          <div class="dr-name">${esc(stop.name)}</div>
+          <div class="dr-name">${esc(shortName(stop.name))}</div>
           <span class="dr-undo-link" onclick="drToggleDelivered(${idx}, false)">Undo</span>
         </div>
       </div>`;
     });
 
     html += `</div></div>`;
+  }
+
+  if (route?.mapsUrl) {
+    html += `<button class="dr-open-maps" onclick="openInMaps()">&#x1f4cd; Open Full Route in Maps</button>`;
   }
 
   listEl.innerHTML = html;
@@ -867,5 +872,5 @@ window.sendReminders = () => {
   }
 
   if (messages.length === 0) { showToast("No customers with phone numbers", "error"); return; }
-  showPreviewOverlay("Payment Reminders", messages, "#fff3e0");
+  showPreviewOverlay("Payment Reminders", messages, "var(--orange-light)");
 };
