@@ -136,9 +136,8 @@ function updateRunningTotal() {
   let total = 0;
   for (const row of document.querySelectorAll("#items-container .item-row")) {
     const id = row.id.split("-")[1];
-    const qty = parseNum(document.getElementById(`qty-${id}`)?.value) || 0;
     const price = parseNum(document.getElementById(`price-${id}`)?.value) || 0;
-    total += qty * price;
+    total += price;
   }
   if (document.getElementById("needs-delivery")?.checked) total += DELIVERY_FEE;
   const el = document.getElementById("running-total");
@@ -154,18 +153,32 @@ window.addItemRow = () => {
     <button class="btn-remove" onclick="removeItem(${id})">&times;</button>
     <select onchange="onProductChange(${id}, this)" style="padding-right:36px;">${buildProductOptions()}</select>
     <div class="row" style="margin-top:8px;">
-      <div><input type="text" id="qty-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()"></div>
+      <div><input type="text" id="qty-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="recalcPrice(${id}); updateRunningTotal()"></div>
       <div class="small"><select id="unit-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
-      <div><input type="text" id="price-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()"></div>
+      <div><input type="text" id="price-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()" readonly></div>
     </div>`;
   document.getElementById("items-container").appendChild(div);
   div.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 window.updateRunningTotal = updateRunningTotal;
 
+window.recalcPrice = (id) => {
+  const priceEl = document.getElementById(`price-${id}`);
+  if (!priceEl?.dataset.unitPrice && priceEl?.dataset.unitPrice !== "0") return;
+  const unitPrice = parseFloat(priceEl.dataset.unitPrice);
+  const qty = parseNum(document.getElementById(`qty-${id}`)?.value) || 0;
+  priceEl.value = qty > 0 ? (unitPrice * qty).toFixed(2) : "";
+};
+
 window.onProductChange = (id, sel) => {
   const opt = sel.options[sel.selectedIndex];
-  if (opt.dataset.price) { document.getElementById(`price-${id}`).value = opt.dataset.price; updateRunningTotal(); }
+  if (opt.dataset.price) {
+    const priceEl = document.getElementById(`price-${id}`);
+    priceEl.dataset.unitPrice = opt.dataset.price;
+    const qty = parseNum(document.getElementById(`qty-${id}`)?.value) || 0;
+    priceEl.value = qty > 0 ? (parseFloat(opt.dataset.price) * qty).toFixed(2) : parseFloat(opt.dataset.price).toFixed(2);
+    updateRunningTotal();
+  }
   if (opt.dataset.unit) document.getElementById(`unit-${id}`).value = opt.dataset.unit;
   state.formDirty = true;
 };
@@ -189,10 +202,11 @@ window.submitOrder = async () => {
     const id = row.id.split("-")[1];
     const qty = parseNum(document.getElementById(`qty-${id}`).value);
     const unit = document.getElementById(`unit-${id}`).value;
-    const price = parseNum(document.getElementById(`price-${id}`).value);
+    const priceEl = document.getElementById(`price-${id}`);
+    const unitPrice = parseFloat(priceEl.dataset.unitPrice) || parseNum(priceEl.value);
     if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
-    if (isNaN(price) || price < 0) { showToast(`Enter price for ${name}`, "error"); return; }
-    items.push({ name, quantity: qty, unit, price });
+    if (isNaN(unitPrice) || unitPrice < 0) { showToast(`Enter price for ${name}`, "error"); return; }
+    items.push({ name, quantity: qty, unit, price: unitPrice });
   }
   if (items.length === 0) { showToast("Add at least one item", "error"); return; }
 
@@ -244,9 +258,9 @@ window.addEditItemRow = (item) => {
     <button class="btn-remove" onclick="this.closest('.item-row').remove()">&times;</button>
     <select id="esel-${id}" onchange="onEditProductChange(${id}, this)" style="padding-right:36px;">${buildProductOptions()}</select>
     <div class="row" style="margin-top:8px;">
-      <div><input type="text" id="eq-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"></div>
+      <div><input type="text" id="eq-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="recalcEditPrice(${id})"></div>
       <div class="small"><select id="eu-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
-      <div><input type="text" id="ep-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*"></div>
+      <div><input type="text" id="ep-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" readonly></div>
     </div>`;
   document.getElementById("edit-items-container").appendChild(div);
   if (item && typeof item === "object") {
@@ -254,14 +268,29 @@ window.addEditItemRow = (item) => {
     for (let i = 0; i < sel.options.length; i++) { if (sel.options[i].textContent === item.name) { sel.selectedIndex = i; break; } }
     document.getElementById(`eq-${id}`).value = item.quantity;
     document.getElementById(`eu-${id}`).value = item.unit;
-    document.getElementById(`ep-${id}`).value = item.price;
+    const priceEl = document.getElementById(`ep-${id}`);
+    priceEl.dataset.unitPrice = item.price;
+    priceEl.value = (item.price * item.quantity).toFixed(2);
   }
   if (!item) div.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
+window.recalcEditPrice = (id) => {
+  const priceEl = document.getElementById(`ep-${id}`);
+  if (!priceEl?.dataset.unitPrice && priceEl?.dataset.unitPrice !== "0") return;
+  const unitPrice = parseFloat(priceEl.dataset.unitPrice);
+  const qty = parseNum(document.getElementById(`eq-${id}`)?.value) || 0;
+  priceEl.value = qty > 0 ? (unitPrice * qty).toFixed(2) : "";
+};
+
 window.onEditProductChange = (id, sel) => {
   const opt = sel.options[sel.selectedIndex];
-  if (opt.dataset.price) document.getElementById(`ep-${id}`).value = opt.dataset.price;
+  if (opt.dataset.price) {
+    const priceEl = document.getElementById(`ep-${id}`);
+    priceEl.dataset.unitPrice = opt.dataset.price;
+    const qty = parseNum(document.getElementById(`eq-${id}`)?.value) || 0;
+    priceEl.value = qty > 0 ? (parseFloat(opt.dataset.price) * qty).toFixed(2) : parseFloat(opt.dataset.price).toFixed(2);
+  }
   if (opt.dataset.unit) document.getElementById(`eu-${id}`).value = opt.dataset.unit;
 };
 
@@ -280,10 +309,11 @@ window.saveEditOrder = async () => {
     const id = row.id.split("-")[1];
     const qty = parseNum(document.getElementById(`eq-${id}`).value);
     const unit = document.getElementById(`eu-${id}`).value;
-    const price = parseNum(document.getElementById(`ep-${id}`).value);
+    const priceEl = document.getElementById(`ep-${id}`);
+    const unitPrice = parseFloat(priceEl.dataset.unitPrice) || parseNum(priceEl.value);
     if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
-    if (isNaN(price) || price < 0) { showToast(`Enter price for ${name}`, "error"); return; }
-    items.push({ name, quantity: qty, unit, price });
+    if (isNaN(unitPrice) || unitPrice < 0) { showToast(`Enter price for ${name}`, "error"); return; }
+    items.push({ name, quantity: qty, unit, price: unitPrice });
   }
   if (items.length === 0) { showToast("Add at least one item", "error"); return; }
   const btn = document.getElementById("save-edit-btn");
