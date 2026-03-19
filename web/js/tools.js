@@ -616,23 +616,25 @@ async function renderDeliveryRun() {
     const total = stop.orders.reduce((s, o) => s + orderTotal(o), 0);
     const allPaid = stop.orders.every(o => o.paid);
     html += `<div class="dr-card" id="dr-stop-${idx}">
-      <div class="dr-step">
+      <div class="dr-header">
         <div class="dr-step-num">${idx + 1}</div>
-        <div>
+        <div class="dr-header-info">
           <div class="dr-name">${esc(stop.name)}</div>
-          <div class="dr-items">${items}</div>
+          <div class="dr-meta">
+            ${stop.eta ? `<span class="dr-eta">${esc(stop.eta)}</span>` : ''}
+            ${allPaid
+              ? `<span class="dr-badge paid">PAID</span>`
+              : `<span class="dr-badge unpaid">&euro;${total.toFixed(2)}</span>`}
+          </div>
         </div>
-        ${stop.eta ? `<div class="dr-eta">${esc(stop.eta)}</div>` : ''}
+        <div class="dr-quick-actions">
+          ${stop.address ? `<button class="dr-icon-btn navigate" data-address="${esc(stop.address)}" onclick="drNavigate(this)">&#x1f4cd;</button>` : ''}
+          ${cust?.phone ? `<button class="dr-icon-btn call" data-phone="${esc(cust.phone)}" onclick="drCall(this)">&#x1f4de;</button>` : ''}
+        </div>
       </div>
-      <div class="dr-status">
-        ${allPaid
-          ? `<div class="dr-badge paid">PAID</div>`
-          : `<div class="dr-badge unpaid">&euro;${total.toFixed(2)} UNPAID</div>`}
-      </div>
-      <div class="dr-actions">
-        ${stop.address ? `<button class="dr-btn-navigate" data-address="${esc(stop.address)}" onclick="drNavigate(this)">&#x1f4cd; Navigate</button>` : ''}
-        ${cust?.phone ? `<button class="dr-btn-call" data-phone="${esc(cust.phone)}" onclick="drCall(this)">&#x1f4de; Call</button>` : ''}
-        ${!allPaid ? `<button class="dr-btn-paid" onclick="drTogglePaid(${idx}, true)">&#x1f4b6; Paid</button>` : ''}
+      <div class="dr-items">${items}</div>
+      <div class="dr-bottom">
+        ${!allPaid ? `<button class="dr-btn-paid" onclick="drTogglePaid(${idx}, true)">Paid</button>` : ''}
         <button class="dr-btn-delivered" onclick="drToggleDelivered(${idx}, true)">&#x2713; Delivered</button>
       </div>
     </div>`;
@@ -649,7 +651,7 @@ async function renderDeliveryRun() {
     doneStops.forEach((stop) => {
       const idx = stops.indexOf(stop);
       html += `<div class="dr-done-card">
-        <div class="dr-step">
+        <div class="dr-header">
           <div class="dr-step-num">${idx + 1}</div>
           <div class="dr-name">${esc(stop.name)}</div>
           <span class="dr-undo-link" onclick="drToggleDelivered(${idx}, false)">Undo</span>
