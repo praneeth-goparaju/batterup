@@ -87,7 +87,6 @@ async function refreshIfStale() {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") refreshIfStale();
 });
-window.addEventListener("focus", () => refreshIfStale());
 
 // ========== PULL TO REFRESH ==========
 let pullStartY = 0;

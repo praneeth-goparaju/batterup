@@ -104,7 +104,6 @@ window.togglePaid = async (id, paid) => {
     await updateDoc(doc(db, "orders", id), { paid });
     const o = state.allOrders.find(x => x.id === id);
     if (o) o.paid = paid;
-    state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast(paid ? "Marked as paid" : "Marked as unpaid");
   } catch (_e) { showToast("Failed to update", "error"); }
@@ -115,7 +114,6 @@ window.toggleDelivered = async (id, delivered) => {
     await updateDoc(doc(db, "orders", id), { delivered });
     const o = state.allOrders.find(x => x.id === id);
     if (o) o.delivered = delivered;
-    state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast(delivered ? "Marked as delivered" : "Marked as undelivered");
   } catch (_e) { showToast("Failed to update", "error"); }
@@ -126,7 +124,6 @@ window.deleteOrder = async (id) => {
   try {
     await deleteDoc(doc(db, "orders", id));
     state.allOrders = state.allOrders.filter(o => o.id !== id);
-    state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast("Order deleted");
   } catch (_e) { showToast("Failed to delete", "error"); }

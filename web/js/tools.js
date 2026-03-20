@@ -1,5 +1,5 @@
 import { state, db, auth, collection, doc, addDoc, getDocs, getDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from './state.js';
-import { esc, showToast, orderTotal, friendlyDate, fmtQty, shortName, buildRawMaterialsByProduct, parseNum } from './helpers.js';
+import { esc, showToast, orderTotal, friendlyDate, fmtQty, shortName, buildRawMaterialsByProduct, aggregateMaterials, parseNum } from './helpers.js';
 import { buildProductOptions } from './products.js';
 
 function buildCustByName() {
@@ -51,14 +51,7 @@ function updateTileSummaries() {
   const productCount = Object.keys(rmByProduct).length;
   const matTile = document.getElementById("tile-materials-summary");
   if (productCount > 0) {
-    // Aggregate all unique materials across products
-    const allMats = new Map();
-    for (const pData of Object.values(rmByProduct)) {
-      for (const rm of Object.values(pData.materials)) {
-        const key = `${rm.name}||${rm.unit}`;
-        allMats.set(key, (allMats.get(key) || 0) + rm.qty);
-      }
-    }
+    const allMats = aggregateMaterials(rmByProduct);
     matTile.textContent = `${allMats.size} material${allMats.size !== 1 ? 's' : ''} needed`;
   } else {
     matTile.textContent = "No materials needed";
@@ -511,15 +504,8 @@ function renderToolsRawMaterials() {
     return;
   }
 
-  // 1. Aggregated shopping list across all products
-  const allMats = new Map();
-  for (const pData of Object.values(rmByProduct)) {
-    for (const rm of Object.values(pData.materials)) {
-      const key = `${rm.name}||${rm.unit}`;
-      if (!allMats.has(key)) allMats.set(key, { name: rm.name, unit: rm.unit, qty: 0 });
-      allMats.get(key).qty += rm.qty;
-    }
-  }
+  // 1. Aggregated list across all products
+  const allMats = aggregateMaterials(rmByProduct);
   const sortedMats = [...allMats.values()].sort((a, b) => a.name.localeCompare(b.name));
   const shoppingRows = sortedMats.map(rm =>
     `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--divider);">
@@ -690,7 +676,7 @@ window.drToggleDelivered = async (stopIdx, delivered) => {
       const stateOrder = state.allOrders.find(x => x.id === o.id);
       if (stateOrder) stateOrder.delivered = delivered;
     }
-    state.fullOrdersLoaded = false;
+
     if (delivered && card) {
       card.classList.add("collapsing");
       setTimeout(() => renderDeliveryRun(), 400);
@@ -714,7 +700,7 @@ window.drTogglePaid = async (stopIdx, paid) => {
       const stateOrder = state.allOrders.find(x => x.id === o.id);
       if (stateOrder) stateOrder.paid = paid;
     }
-    state.fullOrdersLoaded = false;
+
     renderDeliveryRun();
     showToast(`${stop.name} marked paid`);
   } catch (_e) {
@@ -814,7 +800,7 @@ window.saveHomeBatter = async () => {
       state._homeEditId = docRef.id;
       showToast("Home batter saved");
     }
-    state.fullOrdersLoaded = false;
+
   } catch (_e) {
     showToast("Failed to save", "error");
   } finally {
@@ -829,7 +815,7 @@ window.deleteHomeBatter = async () => {
     await deleteDoc(doc(db, "orders", state._homeEditId));
     state.allOrders = state.allOrders.filter(o => o.id !== state._homeEditId);
     state._homeEditId = null;
-    state.fullOrdersLoaded = false;
+
     renderHomeBatter();
     showToast("Home batter deleted");
   } catch (_e) {

@@ -39,4 +39,6 @@ export const state = {
   editingProductId: null,
   editingCustomerId: null,
   fullOrdersLoaded: false,
+  _drStops: null,
+  _homeEditId: null,
 };

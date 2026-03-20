@@ -50,6 +50,18 @@ export function fmtQty(q) {
   return q % 1 === 0 ? q : q.toFixed(2);
 }
 
+export function aggregateMaterials(rmByProduct) {
+  const allMats = new Map();
+  for (const pData of Object.values(rmByProduct)) {
+    for (const rm of Object.values(pData.materials)) {
+      const key = `${rm.name}||${rm.unit}`;
+      if (!allMats.has(key)) allMats.set(key, { name: rm.name, unit: rm.unit, qty: 0 });
+      allMats.get(key).qty += rm.qty;
+    }
+  }
+  return allMats;
+}
+
 export function buildRawMaterialsByProduct(orders, products) {
   const today = new Date().toISOString().split("T")[0];
   const productByName = new Map(products.map(p => [p.name, p]));
