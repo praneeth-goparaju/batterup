@@ -24,6 +24,7 @@ button:active { transform: scale(0.97); }
 .item-row .row > .small { flex: 0.6; }
 .item-row .btn-remove { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--gray-light); color: var(--text-muted); font-size: 1.1rem; line-height: 28px; text-align: center; border: none; cursor: pointer; }
 .item-row .btn-remove:active { background: var(--btn-remove-active); color: var(--red); }
+.item-row input[readonly] { color: var(--blue); font-weight: 700; background: var(--gray-light); }
 .item-row .line-total { text-align: right; font-size: 0.85rem; font-weight: 700; color: var(--success); margin-top: 4px; min-height: 1.2em; }
 .card { background: var(--bg); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; box-shadow: var(--shadow); transition: transform 0.15s; position: relative; }
 .card .meta { font-size: 0.85rem; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 600; }
@@ -210,6 +211,7 @@ button:active { transform: scale(0.97); }
 .dr-badge.paid { background: var(--green-light); color: var(--success); }
 .dr-items-list { margin-bottom: 10px; }
 .dr-item { font-size: 0.9rem; color: var(--text-secondary); padding: 2px 0; }
+.dr-note { font-size: 0.82rem; color: var(--gray); font-style: italic; margin-bottom: 8px; }
 .dr-actions { display: flex; gap: 6px; }
 .dr-actions button { padding: 9px 8px; border-radius: 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
 .dr-btn-map { flex: 1; background: var(--blue); color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 5px; box-shadow: 0 2px 8px rgba(25,118,210,0.25); }

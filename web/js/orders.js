@@ -130,18 +130,23 @@ window.deleteOrder = async (id) => {
 };
 
 // ========== ITEM ROWS + RUNNING TOTAL ==========
-function calcRunningTotal(containerId, qtyPrefix, pricePrefix, ltPrefix, feeId, totalId) {
+function calcRunningTotal({ container, qty, price, unit, lt, fee, total: totalId }) {
   let total = 0;
-  for (const row of document.querySelectorAll(`#${containerId} .item-row`)) {
+  for (const row of document.querySelectorAll(`#${container} .item-row`)) {
     const id = row.id.split("-")[1];
-    const qty = parseNum(document.getElementById(`${qtyPrefix}${id}`)?.value) || 0;
-    const price = parseNum(document.getElementById(`${pricePrefix}${id}`)?.value) || 0;
-    const line = qty * price;
+    const priceEl = document.getElementById(`${price}${id}`);
+    const unitPrice = parseFloat(priceEl?.dataset.unitPrice) || 0;
+    const q = parseNum(document.getElementById(`${qty}${id}`)?.value) || 0;
+    const line = unitPrice * q;
     total += line;
-    const ltEl = document.getElementById(`${ltPrefix}${id}`);
-    if (ltEl) ltEl.textContent = line > 0 ? `\u20AC${line.toFixed(2)}` : "";
+    if (priceEl) priceEl.value = line > 0 ? `\u20AC${line.toFixed(2)}` : "";
+    const ltEl = document.getElementById(`${lt}${id}`);
+    if (ltEl) {
+      const u = document.getElementById(`${unit}${id}`)?.value || '';
+      ltEl.textContent = unitPrice > 0 ? `\u20AC${unitPrice.toFixed(2)}/${u}` : "";
+    }
   }
-  total += parseFloat(document.getElementById(feeId)?.value) || 0;
+  total += parseFloat(document.getElementById(fee)?.value) || 0;
   const el = document.getElementById(totalId);
   if (total > 0) { el.style.display = "block"; el.textContent = `Total: \u20AC${total.toFixed(2)}`; }
   else { el.style.display = "none"; }
@@ -149,7 +154,7 @@ function calcRunningTotal(containerId, qtyPrefix, pricePrefix, ltPrefix, feeId, 
 }
 
 function updateRunningTotal() {
-  if (calcRunningTotal("items-container", "qty-", "price-", "lt-", "delivery-fee", "running-total") > 0) state.formDirty = true;
+  if (calcRunningTotal({ container: "items-container", qty: "qty-", price: "price-", unit: "unit-", lt: "lt-", fee: "delivery-fee", total: "running-total" }) > 0) state.formDirty = true;
 }
 
 window.addItemRow = () => {
@@ -162,7 +167,7 @@ window.addItemRow = () => {
     <div class="row" style="margin-top:8px;">
       <div><input type="text" id="qty-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()"></div>
       <div class="small"><select id="unit-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
-      <div><input type="text" id="price-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateRunningTotal()"></div>
+      <div><input type="text" id="price-${id}" placeholder="Total" readonly></div>
     </div>
     <div class="line-total" id="lt-${id}"></div>`;
   document.getElementById("items-container").appendChild(div);
@@ -171,7 +176,7 @@ window.addItemRow = () => {
 window.updateRunningTotal = updateRunningTotal;
 
 function updateEditRunningTotal() {
-  calcRunningTotal("edit-items-container", "eq-", "ep-", "elt-", "edit-delivery-fee", "edit-running-total");
+  calcRunningTotal({ container: "edit-items-container", qty: "eq-", price: "ep-", unit: "eu-", lt: "elt-", fee: "edit-delivery-fee", total: "edit-running-total" });
 }
 window.updateEditRunningTotal = updateEditRunningTotal;
 
@@ -193,7 +198,10 @@ window.toggleDeliveryFee = (btn, form) => {
 
 window.onProductChange = (id, sel) => {
   const opt = sel.options[sel.selectedIndex];
-  if (opt.dataset.price) { document.getElementById(`price-${id}`).value = opt.dataset.price; updateRunningTotal(); }
+  if (opt.dataset.price) {
+    document.getElementById(`price-${id}`).dataset.unitPrice = opt.dataset.price;
+    updateRunningTotal();
+  }
   if (opt.dataset.unit) document.getElementById(`unit-${id}`).value = opt.dataset.unit;
   state.formDirty = true;
 };
@@ -217,10 +225,11 @@ window.submitOrder = async () => {
     const id = row.id.split("-")[1];
     const qty = parseNum(document.getElementById(`qty-${id}`).value);
     const unit = document.getElementById(`unit-${id}`).value;
-    const price = parseNum(document.getElementById(`price-${id}`).value);
+    const priceEl = document.getElementById(`price-${id}`);
+    if (!priceEl.dataset.unitPrice) { showToast(`Select a product for ${name}`, "error"); return; }
+    const unitPrice = parseFloat(priceEl.dataset.unitPrice);
     if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
-    if (isNaN(price) || price < 0) { showToast(`Enter price for ${name}`, "error"); return; }
-    items.push({ name, quantity: qty, unit, price });
+    items.push({ name, quantity: qty, unit, price: unitPrice });
   }
   if (items.length === 0) { showToast("Add at least one item", "error"); return; }
 
@@ -280,7 +289,7 @@ window.addEditItemRow = (item) => {
     <div class="row" style="margin-top:8px;">
       <div><input type="text" id="eq-${id}" placeholder="Qty" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateEditRunningTotal()"></div>
       <div class="small"><select id="eu-${id}"><option value="kg">kg</option><option value="grams">grams</option><option value="pieces">pieces</option><option value="liters">liters</option></select></div>
-      <div><input type="text" id="ep-${id}" placeholder="Price" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" oninput="updateEditRunningTotal()"></div>
+      <div><input type="text" id="ep-${id}" placeholder="Total" readonly></div>
     </div>
     <div class="line-total" id="elt-${id}"></div>`;
   document.getElementById("edit-items-container").appendChild(div);
@@ -289,14 +298,17 @@ window.addEditItemRow = (item) => {
     for (let i = 0; i < sel.options.length; i++) { if (sel.options[i].textContent === item.name) { sel.selectedIndex = i; break; } }
     document.getElementById(`eq-${id}`).value = item.quantity;
     document.getElementById(`eu-${id}`).value = item.unit;
-    document.getElementById(`ep-${id}`).value = item.price;
+    document.getElementById(`ep-${id}`).dataset.unitPrice = item.price;
   }
   if (!item) div.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
 window.onEditProductChange = (id, sel) => {
   const opt = sel.options[sel.selectedIndex];
-  if (opt.dataset.price) { document.getElementById(`ep-${id}`).value = opt.dataset.price; updateEditRunningTotal(); }
+  if (opt.dataset.price) {
+    document.getElementById(`ep-${id}`).dataset.unitPrice = opt.dataset.price;
+    updateEditRunningTotal();
+  }
   if (opt.dataset.unit) document.getElementById(`eu-${id}`).value = opt.dataset.unit;
 };
 
@@ -315,10 +327,11 @@ window.saveEditOrder = async () => {
     const id = row.id.split("-")[1];
     const qty = parseNum(document.getElementById(`eq-${id}`).value);
     const unit = document.getElementById(`eu-${id}`).value;
-    const price = parseNum(document.getElementById(`ep-${id}`).value);
+    const editPriceEl = document.getElementById(`ep-${id}`);
+    if (!editPriceEl.dataset.unitPrice) { showToast(`Select a product for ${name}`, "error"); return; }
+    const unitPrice = parseFloat(editPriceEl.dataset.unitPrice);
     if (!qty || qty <= 0) { showToast(`Enter quantity for ${name}`, "error"); return; }
-    if (isNaN(price) || price < 0) { showToast(`Enter price for ${name}`, "error"); return; }
-    items.push({ name, quantity: qty, unit, price });
+    items.push({ name, quantity: qty, unit, price: unitPrice });
   }
   if (items.length === 0) { showToast("Add at least one item", "error"); return; }
   const btn = document.getElementById("save-edit-btn");

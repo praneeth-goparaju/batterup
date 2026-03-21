@@ -4,6 +4,12 @@
     "ignore": ["firebase.json", "**/node_modules/**"],
     "headers": [
       {
+        "source": "version.json",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-store" }
+        ]
+      },
+      {
         "source": "/**",
         "headers": [
           { "key": "X-Content-Type-Options", "value": "nosniff" },

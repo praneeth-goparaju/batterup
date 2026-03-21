@@ -132,14 +132,15 @@ async function loadAppConfig() {
   return state.cachedConfig || {};
 }
 
-function renderRouteInfo(label, stops, stopETAs, totalDistanceM, totalDurationS) {
+function renderRouteInfo(label, stops, stopETAs, totalDistanceM, totalDurationS, homeETA) {
   const distKm = (totalDistanceM / 1000).toFixed(1);
   const durMin = Math.round(totalDurationS / 60);
   const stopsHtml = stops.map((s, i) => `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--divider);"><span>${i + 1}. ${esc(s.name)}</span><span style="color:var(--gray);font-size:0.85rem;">${stopETAs[i] || ''}</span></div>`).join('');
+  const homeHtml = homeETA ? `<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>&#x1f3e0; Back Home</span><span style="color:var(--gray);font-size:0.85rem;">${homeETA}</span></div>` : '';
   document.getElementById("route-info").innerHTML = `
     <div class="route-info">
       <div class="route-label">${label} \u00b7 ${distKm} km \u00b7 ~${durMin} min</div>
-      <div style="margin:8px 0;">${stopsHtml}</div>
+      <div style="margin:8px 0;">${stopsHtml}${homeHtml}</div>
     </div>`;
   document.getElementById("route-info").style.display = "block";
   document.getElementById("btn-open-maps").style.display = "block";
@@ -162,7 +163,9 @@ async function fetchRouteForDate(dateStr) {
       totalDuration: saved.total_duration_s,
       legDurations: [],
       stopETAs: stopETAs,
-      mapsUrl: saved.maps_url
+      mapsUrl: saved.maps_url,
+      startTime: saved.start_time,
+      homeETA: saved.home_eta
     };
     return state.optimizedRoute;
   } catch (e) {
@@ -177,7 +180,7 @@ async function loadSavedRoute() {
   if (!dateStr || dateStr < today) return;
   const route = await fetchRouteForDate(dateStr);
   if (route) {
-    renderRouteInfo("Saved Route", route.stops, route.stopETAs, route.totalDistance, route.totalDuration);
+    renderRouteInfo("Saved Route", route.stops, route.stopETAs, route.totalDistance, route.totalDuration, route.homeETA);
     updateNotifyButton();
   }
 }
@@ -266,10 +269,16 @@ window.planRoute = async () => {
       stopETAs.push(etaStr);
     }
 
-    state.optimizedRoute = { stops: orderedStops, totalDistance, totalDuration, legDurations, stopETAs, mapsUrl, startTime };
+    // Calculate home arrival time (after last leg back home + buffer for last stop)
+    cumDur += STOP_BUFFER_SEC;
+    cumDur += legDurations[orderedStops.length] || 0;
+    const homeDate = new Date(startDate.getTime() + cumDur * 1000);
+    const homeETA = homeDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    state.optimizedRoute = { stops: orderedStops, totalDistance, totalDuration, legDurations, stopETAs, mapsUrl, startTime, homeETA };
 
     const routeStr = orderedStops.map(s => s.name).join(" \u2192 ");
-    renderRouteInfo("Optimized Route", orderedStops, stopETAs, totalDistance, totalDuration);
+    renderRouteInfo("Optimized Route", orderedStops, stopETAs, totalDistance, totalDuration, homeETA);
     updateNotifyButton();
 
     try {
@@ -280,6 +289,7 @@ window.planRoute = async () => {
         total_distance_m: totalDistance,
         total_duration_s: totalDuration,
         maps_url: mapsUrl,
+        home_eta: homeETA,
         route_summary: routeStr,
         created_by: auth.currentUser.email,
         timestamp: serverTimestamp()
@@ -585,6 +595,11 @@ async function renderDeliveryRun() {
   const doneCount = doneStops.length;
   const pct = totalStops > 0 ? Math.round((doneCount / totalStops) * 100) : 0;
 
+  const startTime = route?.startTime || '';
+  const homeETA = route?.homeETA || '';
+  const timeInfo = [startTime ? `Start: ${startTime}` : '', homeETA ? `Home: ${homeETA}` : ''].filter(Boolean).join(' · ');
+  document.getElementById("dr-start-time").textContent = timeInfo;
+
   headerEl.innerHTML = `
     <div class="dr-progress">
       <div style="font-weight:700;font-size:1.1rem;">${doneCount === totalStops ? 'All Delivered! &#x1f389;' : `${doneCount} of ${totalStops} delivered`}</div>
@@ -605,6 +620,7 @@ async function renderDeliveryRun() {
     const total = stop.orders.reduce((s, o) => s + orderTotal(o), 0);
     const allPaid = stop.orders.every(o => o.paid);
     const itemsHtml = allItems.map(item => `<div class="dr-item">${item}</div>`).join('');
+    const notes = stop.orders.map(o => o.notes).filter(Boolean).map(n => esc(n)).join('; ');
     html += `<div class="dr-card" id="dr-stop-${idx}">
       <div class="dr-top">
         <div class="dr-step-num">${idx + 1}</div>
@@ -618,6 +634,7 @@ async function renderDeliveryRun() {
         ${cust?.phone ? `<button class="dr-btn-call" data-phone="${esc(cust.phone)}" onclick="drCall(this)">${callSvg}</button>` : ''}
       </div>
       <div class="dr-items-list">${itemsHtml}</div>
+      ${notes ? `<div class="dr-note">${notes}</div>` : ''}
 
       <div class="dr-actions">
         ${stop.address ? `<button class="dr-btn-map" data-address="${esc(stop.address)}" onclick="drNavigate(this)">${mapSvg} Navigate</button>` : ''}

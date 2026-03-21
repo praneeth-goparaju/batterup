@@ -51,7 +51,10 @@ function activateTab(tab) {
 }
 
 window.switchTab = (tab, btn) => {
-  if (location.hash === `#${tab}`) return;
+  if (location.hash === `#${tab}`) {
+    if (tab === "tools") loadToolsTab();
+    return;
+  }
   history.pushState(null, "", `#${tab}`);
   activateTab(tab);
 };
@@ -84,9 +87,22 @@ async function refreshIfStale() {
   await loadAll();
 }
 
+// Check for new deploys and reload if needed
+let appVersion = null;
+async function checkForUpdate() {
+  try {
+    const res = await fetch('/version.json?t=' + Date.now());
+    if (!res.ok) return;
+    const data = await res.json();
+    if (appVersion === null) { appVersion = data.v; return; }
+    if (data.v !== appVersion) { location.reload(); }
+  } catch (_) {}
+}
+
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") refreshIfStale();
+  if (document.visibilityState === "visible") { refreshIfStale(); checkForUpdate(); }
 });
+checkForUpdate();
 
 // ========== PULL TO REFRESH ==========
 let pullStartY = 0;

@@ -8,5 +8,8 @@ TIMESTAMP=$(date +%s)
 sed -i '' "s/styles\.css?v=[0-9]*/styles.css?v=$TIMESTAMP/" "$FILE"
 sed -i '' "s/app\.js?v=[0-9]*/app.js?v=$TIMESTAMP/" "$FILE"
 
+# Bump version.json so PWA auto-reloads on foreground
+echo "{\"v\":$TIMESTAMP}" > web/version.json
+
 echo "Cache version bumped to $TIMESTAMP"
 firebase deploy --only hosting
