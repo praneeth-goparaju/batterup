@@ -815,6 +815,7 @@ window.saveHomeBatter = async () => {
         delivered: false, paid: true, created_by: auth.currentUser.email
       });
       state._homeEditId = docRef.id;
+      state.fullOrdersLoaded = false;
       showToast("Home batter saved");
     }
 
@@ -832,6 +833,7 @@ window.deleteHomeBatter = async () => {
     await deleteDoc(doc(db, "orders", state._homeEditId));
     state.allOrders = state.allOrders.filter(o => o.id !== state._homeEditId);
     state._homeEditId = null;
+    state.fullOrdersLoaded = false;
 
     renderHomeBatter();
     showToast("Home batter deleted");
@@ -857,7 +859,82 @@ function renderToolsReminders() {
   document.getElementById("reminder-count").textContent = count;
   document.getElementById("reminder-sub").textContent = `customer${count !== 1 ? "s" : ""} with unpaid delivered orders`;
   document.getElementById("reminder-total").innerHTML = `Total outstanding: &euro;${total.toFixed(2)}`;
+
+  renderOpenPayments();
 }
+
+function getUnpaidOrdersByCustomer() {
+  const byCustomer = {};
+  for (const o of state.allOrders.filter(o => !o.paid && !o.is_home)) {
+    if (!byCustomer[o.customer_name]) byCustomer[o.customer_name] = [];
+    byCustomer[o.customer_name].push(o);
+  }
+  return byCustomer;
+}
+
+function renderOpenPayments() {
+  const container = document.getElementById("open-payments-list");
+  const byCustomer = getUnpaidOrdersByCustomer();
+  const names = Object.keys(byCustomer).sort();
+
+  if (names.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--gray);padding:16px;font-size:0.9rem;">No open payments</div>';
+    return;
+  }
+
+  let html = '<h4 style="margin:0 0 12px;font-size:0.95rem;color:var(--text);">Open Payments</h4>';
+  for (const name of names) {
+    const orders = byCustomer[name];
+    const custTotal = orders.reduce((s, o) => s + orderTotal(o), 0);
+    const orderLines = orders.map(o => {
+      const d = new Date(o.delivery_date + "T00:00:00");
+      const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const items = o.items.map(i => `<div style="padding:1px 0;">${fmtQty(i.quantity)} ${i.unit} ${esc(i.name)}</div>`).join("");
+      const badge = o.delivered ? '<span style="font-size:0.7rem;background:var(--green);color:#fff;border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle;">DELIVERED</span>' : '';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--divider);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.85rem;color:var(--text);margin-bottom:2px;">${dateStr}${badge}</div>
+          <div style="font-size:0.8rem;color:var(--gray);">${items}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-left:10px;">
+          <span style="font-size:0.9rem;font-weight:600;">&euro;${orderTotal(o).toFixed(2)}</span>
+          <button onclick="markOrderPaid('${o.id}')" style="font-size:0.8rem;padding:8px 14px;border:none;border-radius:8px;background:var(--green-light);color:var(--success);font-weight:600;cursor:pointer;min-height:36px;">Paid</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    html += `<div style="background:var(--bg);border-radius:var(--radius);padding:14px;margin-bottom:12px;box-shadow:var(--shadow);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong style="font-size:1rem;">${esc(shortName(name))}</strong>
+        <span style="color:var(--orange);font-weight:700;font-size:1rem;">&euro;${custTotal.toFixed(2)}</span>
+      </div>
+      ${orderLines}
+      <button onclick="markCustomerPaid(this.dataset.name)" data-name="${esc(name)}" style="width:100%;margin-top:10px;padding:10px;border:none;border-radius:8px;background:var(--orange-light);color:var(--orange);font-size:0.85rem;font-weight:700;cursor:pointer;min-height:42px;">Mark All Paid</button>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+window.markOrderPaid = async (id) => {
+  try {
+    await updateDoc(doc(db, "orders", id), { paid: true });
+    const o = state.allOrders.find(x => x.id === id);
+    if (o) o.paid = true;
+    renderToolsReminders();
+    showToast("Marked as paid");
+  } catch (_e) { showToast("Failed to update", "error"); }
+};
+
+window.markCustomerPaid = async (name) => {
+  const orders = state.allOrders.filter(o => o.customer_name === name && !o.paid && !o.is_home);
+  if (orders.length === 0) return;
+  try {
+    await Promise.all(orders.map(o => updateDoc(doc(db, "orders", o.id), { paid: true })));
+    orders.forEach(o => o.paid = true);
+    renderToolsReminders();
+    showToast(`All orders for ${shortName(name)} marked as paid`);
+  } catch (_e) { showToast("Failed to update", "error"); }
+};
 
 window.sendReminders = () => {
   const entries = Object.entries(getUnpaidDeliveredByCustomer());

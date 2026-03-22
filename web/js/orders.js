@@ -124,6 +124,7 @@ window.deleteOrder = async (id) => {
   try {
     await deleteDoc(doc(db, "orders", id));
     state.allOrders = state.allOrders.filter(o => o.id !== id);
+    state.fullOrdersLoaded = false;
     renderOrdersList();
     showToast("Order deleted");
   } catch (_e) { showToast("Failed to delete", "error"); }
