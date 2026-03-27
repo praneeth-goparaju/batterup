@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="css/styles.css?v=1774203956">
+  <link rel="stylesheet" href="css/styles.css?v=1774647695">
 </head>
 <body>
   <div class="container">
@@ -103,12 +103,12 @@
         <div id="tools-hub" class="tools-grid">
           <div class="tool-tile" onclick="openTool('route')">
             <div class="tool-tile-icon">&#x1f5fa;</div>
-            <div class="tool-tile-title">Plan Route</div>
+            <div class="tool-tile-title">Route Planner</div>
             <div class="tool-tile-summary" id="tile-route-summary">Optimize delivery order</div>
           </div>
           <div class="tool-tile" onclick="openTool('materials')">
             <div class="tool-tile-icon">&#x1f6d2;</div>
-            <div class="tool-tile-title">Materials Needed</div>
+            <div class="tool-tile-title">Prep List</div>
             <div class="tool-tile-summary" id="tile-materials-summary">What to buy</div>
           </div>
           <div class="tool-tile" onclick="openTool('deliveryrun')">
@@ -118,20 +118,25 @@
           </div>
           <div class="tool-tile" onclick="openTool('homebatter')">
             <div class="tool-tile-icon">&#x1f3e0;</div>
-            <div class="tool-tile-title">Home Batter</div>
+            <div class="tool-tile-title">For Home</div>
             <div class="tool-tile-summary" id="tile-homebatter-summary">Add for home use</div>
           </div>
           <div class="tool-tile" onclick="openTool('reminders')">
             <div class="tool-tile-icon">&#x1f4ac;</div>
-            <div class="tool-tile-title">Reminders</div>
+            <div class="tool-tile-title">Payment Reminders</div>
             <div class="tool-tile-summary" id="tile-reminders-summary">Payment follow-ups</div>
+          </div>
+          <div class="tool-tile" onclick="openTool('pricesummary')">
+            <div class="tool-tile-icon">&#x1f4b0;</div>
+            <div class="tool-tile-title">Price &amp; ETA</div>
+            <div class="tool-tile-summary" id="tile-pricesummary-summary">Send price breakdown</div>
           </div>
         </div>
 
         <!-- Detail Views (hidden by default) -->
         <div id="tool-detail-route" class="tool-detail" style="display:none;">
           <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
-          <h3>Plan Route</h3>
+          <h3>Route Planner</h3>
           <div class="tools-date-picker">
             <label style="margin:0;min-width:auto;">Start Time</label>
             <input type="time" id="tools-start-time" value="08:00">
@@ -145,7 +150,7 @@
 
         <div id="tool-detail-materials" class="tool-detail" style="display:none;">
           <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
-          <h3>Materials Needed</h3>
+          <h3>Prep List</h3>
           <div style="font-size:0.8rem;color:var(--gray);margin-bottom:12px;">For all upcoming undelivered orders</div>
           <div id="tools-raw-materials" class="report-card" style="margin:0;"></div>
         </div>
@@ -159,12 +164,18 @@
 
         <div id="tool-detail-homebatter" class="tool-detail" style="display:none;">
           <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
-          <h3>Home Batter</h3>
-          <div style="font-size:0.8rem;color:var(--gray);margin-bottom:12px;">Add products for home use</div>
+          <h3>For Home</h3>
+          <div style="font-size:0.8rem;color:var(--gray);margin-bottom:12px;">Record batter made for home use</div>
           <div id="home-items-container"></div>
           <button class="btn-add" type="button" onclick="addHomeItemRow()" style="margin-bottom:12px;">+ Add Item</button>
           <button class="btn-primary" id="home-save-btn" onclick="saveHomeBatter()">Save</button>
           <button class="btn-danger" id="home-delete-btn" onclick="deleteHomeBatter()" style="display:none;width:100%;margin-top:8px;">Delete</button>
+        </div>
+
+        <div id="tool-detail-pricesummary" class="tool-detail" style="display:none;">
+          <div class="tool-detail-back" onclick="closeTool()">&#x2190; Back</div>
+          <h3>Price &amp; ETA</h3>
+          <div id="pricesummary-content"></div>
         </div>
 
         <div id="tool-detail-reminders" class="tool-detail" style="display:none;">
@@ -329,6 +340,6 @@
     </button>
   </div>
 
-  <script type="module" src="js/app.js?v=1774203956"></script>
+  <script type="module" src="js/app.js?v=1774647695"></script>
 </body>
 </html>

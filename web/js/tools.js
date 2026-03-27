@@ -1,5 +1,5 @@
 import { state, db, auth, collection, doc, addDoc, getDocs, getDoc, updateDoc, deleteDoc, query, where, serverTimestamp } from './state.js';
-import { esc, showToast, orderTotal, friendlyDate, fmtQty, shortName, buildRawMaterialsByProduct, aggregateMaterials, parseNum } from './helpers.js';
+import { esc, showToast, orderTotal, friendlyDate, fmtQty, shortName, buildRawMaterialsByProduct, aggregateMaterials, parseNum, getDeliveryFee } from './helpers.js';
 import { buildProductOptions } from './products.js';
 
 function buildCustByName() {
@@ -16,6 +16,7 @@ window.openTool = (tool) => {
   if (tool === "reminders") renderToolsReminders();
   if (tool === "deliveryrun") renderDeliveryRun();
   if (tool === "homebatter") renderHomeBatter();
+  if (tool === "pricesummary") renderPriceSummary();
 };
 
 window.closeTool = () => {
@@ -27,7 +28,10 @@ window.closeTool = () => {
 function updateTileSummaries() {
   const today = new Date().toISOString().split("T")[0];
   const dateStr = document.getElementById("tools-date").value || today;
-  const deliveries = state.allOrders.filter(o => o.delivery_date === dateStr && o.needs_delivery);
+  const allForDate = state.allOrders.filter(o => o.delivery_date === dateStr);
+  const deliveries = allForDate.filter(o => o.needs_delivery);
+  const homeOrders = allForDate.filter(o => o.is_home);
+  const dateOrders = allForDate.filter(o => !o.is_home);
 
   // Route tile
   const routeTile = document.getElementById("tile-route-summary");
@@ -58,13 +62,21 @@ function updateTileSummaries() {
   }
 
   // Home batter tile
-  const homeOrders = state.allOrders.filter(o => o.delivery_date === dateStr && o.is_home);
   const homeTile = document.getElementById("tile-homebatter-summary");
   if (homeOrders.length > 0) {
     const homeItems = homeOrders.flatMap(o => o.items).length;
     homeTile.textContent = `${homeItems} item${homeItems !== 1 ? 's' : ''} added`;
   } else {
     homeTile.textContent = "Add for home use";
+  }
+
+  // Price Summary tile
+  const psTile = document.getElementById("tile-pricesummary-summary");
+  if (dateOrders.length > 0) {
+    const psTotal = dateOrders.reduce((s, o) => s + orderTotal(o), 0);
+    psTile.innerHTML = `${dateOrders.length} order${dateOrders.length !== 1 ? 's' : ''} &middot; &euro;${psTotal.toFixed(2)}`;
+  } else {
+    psTile.textContent = "Send price breakdown";
   }
 
   // Reminders tile
@@ -953,4 +965,131 @@ window.sendReminders = () => {
 
   if (messages.length === 0) { showToast("No customers with phone numbers", "error"); return; }
   showPreviewOverlay("Payment Reminders", messages, "var(--orange-light)");
+};
+
+// ========== PRICE SUMMARY ==========
+let _psCusts = [];
+let _psRouteEtas = [];
+let _psOrdersByCustomer = new Map();
+
+function etaToInputVal(etaStr) {
+  if (!etaStr) return '';
+  const m = etaStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!m) return '';
+  let h = parseInt(m[1]);
+  const min = m[2];
+  const period = m[3].toUpperCase();
+  if (period === 'PM' && h !== 12) h += 12;
+  if (period === 'AM' && h === 12) h = 0;
+  return `${String(h).padStart(2, '0')}:${min}`;
+}
+
+async function renderPriceSummary() {
+  const container = document.getElementById("pricesummary-content");
+  const dateStr = document.getElementById("tools-date").value;
+  if (!dateStr) {
+    container.innerHTML = '<div class="empty-state"><p>Select a delivery date</p></div>';
+    return;
+  }
+
+  const orders = state.allOrders.filter(o => o.delivery_date === dateStr && !o.is_home);
+  if (orders.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">&#x1f4b0;</div><p>No orders for this date</p></div>';
+    return;
+  }
+
+  const route = await fetchRouteForDate(dateStr);
+  const custByName = buildCustByName();
+  const stopEtaByName = new Map();
+  if (route?.stops) {
+    route.stops.forEach((s, i) => { if (route.stopETAs?.[i]) stopEtaByName.set(s.name, route.stopETAs[i]); });
+  }
+
+  // Group by customer, preserve insertion order
+  const ordersByCustomer = new Map();
+  for (const o of orders) {
+    if (!ordersByCustomer.has(o.customer_name)) ordersByCustomer.set(o.customer_name, []);
+    ordersByCustomer.get(o.customer_name).push(o);
+  }
+
+  const custNames = [...ordersByCustomer.keys()];
+  _psCusts = custNames;
+  _psRouteEtas = custNames.map(n => stopEtaByName.get(n) || '');
+  _psOrdersByCustomer = ordersByCustomer;
+
+  const withPhone = custNames.filter(n => custByName.get(n)?.phone);
+
+  let custRows = '';
+  custNames.forEach((name, idx) => {
+    const cust = custByName.get(name);
+    if (!cust?.phone) return;
+    const routeEta = stopEtaByName.get(name) || '';
+    const inputVal = etaToInputVal(routeEta);
+    custRows += `<div style="background:var(--bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:0.95rem;font-weight:600;">${esc(shortName(name))}</span>
+        ${routeEta ? `<span style="font-size:0.8rem;color:var(--gray);">Route ETA: ${esc(routeEta)}</span>` : ''}
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:10px;">
+        <input type="checkbox" id="ps-eta-chk-${idx}" onchange="togglePSEtaInput(${idx}, this.checked)" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:0.85rem;">Update ETA</span>
+      </label>
+      <div id="ps-eta-input-${idx}" style="display:none;margin-top:8px;">
+        <input type="time" id="ps-eta-${idx}" value="${inputVal}" style="font-size:0.85rem;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-secondary,var(--gray-light));color:var(--text);width:100%;">
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = `
+    <div style="font-size:0.85rem;color:var(--gray);margin-bottom:12px;">${orders.length} order${orders.length !== 1 ? 's' : ''} for ${friendlyDate(dateStr)}</div>
+    ${custRows || '<div style="font-size:0.85rem;color:var(--gray);">No customers with phone numbers</div>'}
+    <button class="btn-primary" onclick="sendPriceSummary()" ${withPhone.length === 0 ? 'disabled' : ''}>&#x1f4b0; Preview Messages (${withPhone.length})</button>
+    ${withPhone.length === 0 ? '<div style="font-size:0.8rem;color:var(--gray);text-align:center;margin-top:6px;">No customers with phone numbers</div>' : ''}`;
+}
+
+window.togglePSEtaInput = (idx, checked) => {
+  document.getElementById(`ps-eta-input-${idx}`).style.display = checked ? "block" : "none";
+};
+
+window.sendPriceSummary = () => {
+  const dateStr = document.getElementById("tools-date").value;
+  const custByName = buildCustByName();
+  const dateLabel = friendlyDate(dateStr);
+
+  const messages = [];
+  _psCusts.forEach((name, idx) => {
+    const cust = custByName.get(name);
+    if (!cust?.phone) return;
+    const custOrders = _psOrdersByCustomer.get(name) || [];
+    if (custOrders.length === 0) return;
+
+    const firstName = name.split(' ')[0];
+
+    const itemLines = custOrders.flatMap(o => o.items).map(i =>
+      `\u2022 ${fmtQty(i.quantity)} ${i.unit} ${i.name} \u2013 \u20ac${(i.quantity * i.price).toFixed(2)}`
+    ).join('\n');
+
+    const deliveryFee = custOrders.reduce((s, o) => s + getDeliveryFee(o), 0);
+    const deliveryLine = deliveryFee > 0 ? `\nDelivery: \u20ac${deliveryFee.toFixed(2)}` : '';
+    const total = custOrders.reduce((s, o) => s + orderTotal(o), 0);
+
+    const routeEta = _psRouteEtas[idx] || '';
+    const updatedVal = document.getElementById(`ps-eta-chk-${idx}`)?.checked
+      ? document.getElementById(`ps-eta-${idx}`)?.value
+      : '';
+    let etaLine = '';
+    if (updatedVal) {
+      const [h, m] = updatedVal.split(':').map(Number);
+      const etaStr = new Date(2000, 0, 1, h, m).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+      etaLine = `\n\nYour updated delivery time is *${etaStr}*.`;
+    } else if (routeEta) {
+      etaLine = `\n\nExpected delivery time: *${routeEta}*.`;
+    }
+
+    const msg = `Hi ${firstName},\nHere's your order summary for *${dateLabel}*:\n\n${itemLines}${deliveryLine}\n*Total: \u20ac${total.toFixed(2)}*${etaLine}\n\nThank you for choosing Manasa's Batters!`;
+    messages.push({ to: `${name} (${cust.phone})`, text: msg, phone: cust.phone });
+  });
+
+  if (messages.length === 0) { showToast("No customers with phone numbers", "error"); return; }
+  showPreviewOverlay("Price Summary", messages, "var(--blue-light)");
 };
